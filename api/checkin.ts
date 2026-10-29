@@ -1,15 +1,17 @@
-// AI check-in endpoint (Vercel serverless function). NOT CONNECTED YET.
+// AI check-in endpoint (Vercel edge function). PX Plus subscribers only.
 //
-// The app currently uses the scripted engine in src/lib/checkinBot.ts. When
-// the client approves AI costs, deploy this and point the chat at /api/checkin.
-// Safety checks still run on the device before anything is sent here.
+// Order of checks: signed in → active subscription + daily allowance (one
+// database call, use_ai_credit) → Anthropic. Free users keep the scripted
+// engine in src/lib/checkinBot.ts. Safety checks run on the device first, and
+// crisis messages are never sent here. Check-in text isn't stored server-side.
 //
-// Env: ANTHROPIC_API_KEY (server-side only; never ship it to the browser).
+// Env: ANTHROPIC_API_KEY, SUPABASE_URL, SUPABASE_ANON_KEY (server-side).
 // Cost reference: Claude Haiku 5.5 is $0.10 / $0.50 per million input/output
 // tokens (prompts under 100K). A 5-turn check-in is roughly 20K in / 1K out, so
 // about a quarter of a cent. Enforce a per-user daily cap before calling.
 //
-// Untested in this build environment (no network access). Test before launch.
+// Tested against mocks only; run one real check-in after adding the key.
+import { env, fail, getUser, json } from './_shared';
 
 export const config = { runtime: 'edge' };
 
@@ -32,19 +34,32 @@ const TOOL = {
   },
 };
 
-interface Body { messages: { role: 'user' | 'assistant'; content: string }[]; context: { name?: string; recall?: string; todaySession?: string } }
+interface Body { messages: { role: 'user' | 'assistant'; content: string }[]; context: { name?: string; recall?: string; todaySession?: string; opener?: string } }
 
 export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return new Response('Method not allowed', { status: 405 });
-  const key = process.env.ANTHROPIC_API_KEY;
-  if (!key) return Response.json({ error: 'AI check-in is not configured' }, { status: 503 });
-  // TODO before launch: authenticate the user (Supabase JWT) and enforce a per-user daily limit.
+  if (req.method !== 'POST') return fail('Method not allowed', 405);
+  const key = env('ANTHROPIC_API_KEY');
+  if (!key) return fail('The AI coach isn’t switched on yet.', 503, 'not_configured');
+  const user = await getUser(req);
+  if (!user) return fail('Sign in to use the AI coach.', 401, 'signed_out');
+  const credit = await fetch(`${env('SUPABASE_URL')}/rest/v1/rpc/use_ai_credit`, {
+    method: 'POST',
+    headers: { apikey: env('SUPABASE_ANON_KEY'), authorization: `Bearer ${user.token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ daily_limit: Number(env('PX_AI_DAILY_LIMIT') || 30) }),
+  }).then((r) => r.json()).catch(() => null);
+  if (!credit) return fail('Couldn’t check your plan. Try again.', 502, 'plan_check_failed');
+  if (!credit.allowed) {
+    if (credit.reason === 'daily_limit') return fail('That’s today’s AI coach limit. The quick check-in still works.', 429, 'daily_limit');
+    return fail('The AI coach is part of PX Plus.', 402, 'not_subscribed');
+  }
   let body: Body;
-  try { body = await req.json(); } catch { return Response.json({ error: 'Bad JSON' }, { status: 400 }); }
+  try { body = await req.json(); } catch { return fail('Bad JSON', 400); }
   const messages = (body.messages ?? []).slice(-12).map((m) => ({ role: m.role, content: String(m.content).slice(0, 600) }));
-  if (!messages.length) return Response.json({ error: 'No messages' }, { status: 400 });
+  if (!messages.length) return fail('No messages', 400);
 
-  const ctx = `Context (from the app, not the user): name=${body.context?.name ?? ''}; ${body.context?.recall ? `last time they mentioned: ${body.context.recall}; ` : ''}today's session: ${body.context?.todaySession ?? 'rest day'}.`;
+  const c = body.context ?? {};
+  const clip = (v: unknown, n: number) => String(v ?? '').slice(0, n);
+  const ctx = `Context (from the app, not the user): name=${clip(c.name, 40)}; ${c.recall ? `you already said to them: "${clip(c.recall, 200)}"; ` : ''}today's session: ${clip(c.todaySession, 60) || 'rest day'}; the app opened by asking: "${clip(c.opener, 120)}".`;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
@@ -56,9 +71,9 @@ export default async function handler(req: Request): Promise<Response> {
       messages,
     }),
   });
-  if (!res.ok) return Response.json({ error: 'AI service error', status: res.status }, { status: 502 });
+  if (!res.ok) return fail('The AI coach is busy. Try again in a moment.', 502, 'ai_error');
   const data = await res.json();
   const text = (data.content ?? []).filter((b: { type: string }) => b.type === 'text').map((b: { text: string }) => b.text).join(' ').trim();
   const tool = (data.content ?? []).find((b: { type: string; name?: string }) => b.type === 'tool_use' && b.name === 'record_checkin');
-  return Response.json({ reply: text, checkin: tool?.input ?? null, done: !!tool, usage: data.usage });
+  return json({ reply: text, checkin: tool?.input ?? null, done: !!tool });
 }

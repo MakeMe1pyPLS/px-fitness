@@ -4,13 +4,20 @@ import { createPortal } from 'react-dom';
 /** Overlays render at the document root so no ancestor transform can offset them. */
 export const Portal = ({ children }: { children: React.ReactNode }) => (typeof document === 'undefined' ? <>{children}</> : createPortal(children, document.body));
 import { Store } from '../lib/store';
+import { Cloud } from '../lib/cloud';
 
 // ── Store binding ─────────────────────────────────────────────────────────
 export const store = new Store();
 (globalThis as unknown as { __kova?: Store }).__kova = store; // handy for e2e inspection
+export const cloud = new Cloud(store);
+(globalThis as unknown as { __cloud?: Cloud }).__cloud = cloud;
 
 export function useData() {
   return useSyncExternalStore(store.subscribe, store.get, store.get);
+}
+
+export function useCloud() {
+  return useSyncExternalStore(cloud.subscribe, cloud.get, cloud.get);
 }
 
 // ── Routing (hash names only: works inside sandboxed hosts) ───────────────

@@ -110,6 +110,8 @@ await step('client onboarding, then the chat check-in saves structured data', as
   await page.getByTestId('goal-strength').click();
   for (let i = 0; i < 6; i++) await page.getByTestId('onb-next').click();
   await page.getByTestId('onb-finish').click();
+  // Make today a training day so the short-version suggestion applies whatever the weekday.
+  await page.evaluate(() => globalThis.__kova.updateProfile({ trainingDays: [0, 1, 2, 3, 4, 5, 6] }, false));
   await page.getByTestId('open-chat').click();
   await page.getByText('How are you feeling today?').first().waitFor();
   await page.getByTestId('chip-Okay').click();

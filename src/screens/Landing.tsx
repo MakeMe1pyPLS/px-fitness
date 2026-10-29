@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BRAND } from '../brand';
-import { Icon } from '../components/core';
+import { Icon, store, useCloud } from '../components/core';
+import { AuthSheet } from '../components/Account';
 
 // The opening plays once per browser session and never blocks input: the
 // overlay ignores pointer events and is skipped entirely under reduced motion.
@@ -24,6 +25,9 @@ function useIntro() {
 
 export function Landing({ onStart, hasProfile, onOpen, onBook, onCoach }: { onStart: () => void; hasProfile: boolean; onOpen: () => void; onBook?: () => void; onCoach?: () => void }) {
   const intro = useIntro();
+  const c = useCloud();
+  const [signin, setSignin] = useState(false);
+  const canSignIn = c.enabled && !c.session && !hasProfile;
   return (
     <div className="landing">
       {intro && (
@@ -34,7 +38,7 @@ export function Landing({ onStart, hasProfile, onOpen, onBook, onCoach }: { onSt
       <div className="landing-inner">
         <header className="landing-nav">
           <span className="wordmark" aria-label={BRAND.name}><i aria-hidden />{BRAND.wordmark}</span>
-          {hasProfile ? <button className="btn btn-outline btn-sm" onClick={onOpen}>Open app</button> : <button className="btn btn-outline btn-sm" onClick={onStart}>Get started</button>}
+          {hasProfile ? <button className="btn btn-outline btn-sm" onClick={onOpen}>Open app</button> : canSignIn ? <button className="btn btn-outline btn-sm" onClick={() => setSignin(true)} data-testid="landing-signin">Sign in</button> : <button className="btn btn-outline btn-sm" onClick={onStart}>Get started</button>}
         </header>
 
         <main>
@@ -53,6 +57,7 @@ export function Landing({ onStart, hasProfile, onOpen, onBook, onCoach }: { onSt
               {onBook && <button className="btn btn-outline btn-lg" onClick={onBook} data-testid="cta-book">Book a session</button>}
             </div>
             {!hasProfile && <span className="small" style={{ color: 'var(--night-ink-2)' }}>About a minute to set up. No account needed.</span>}
+            {signin && <AuthSheet onClose={() => setSignin(false)} then={() => { if (store.get().profile) onOpen(); }} />}
             <div className="strip-demo" aria-hidden>
               {['d', '', 's', 'd', '', 'x', ''].map((c, i) => <div key={i} className={c} style={{ animationDelay: `${600 + i * 60}ms` }} />)}
             </div>

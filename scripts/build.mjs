@@ -5,6 +5,10 @@ import { build } from 'esbuild';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const dev = process.argv.includes('--dev');
+const outFile = process.env.PX_OUT || 'dist/index.html';
+// Public Supabase settings (safe in the browser). Set in Vercel as
+// PX_SUPABASE_URL / PX_SUPABASE_ANON_KEY. Empty = accounts hidden.
+const pub = (k) => JSON.stringify(process.env[k] || '');
 const result = await build({
   entryPoints: ['src/main.tsx'],
   bundle: true,
@@ -15,7 +19,7 @@ const result = await build({
   jsx: 'automatic',
   write: false,
   outdir: 'dist',
-  define: { 'process.env.NODE_ENV': dev ? '"development"' : '"production"' },
+  define: { 'process.env.NODE_ENV': dev ? '"development"' : '"production"', __PX_SUPABASE_URL__: pub('PX_SUPABASE_URL'), __PX_SUPABASE_ANON_KEY__: pub('PX_SUPABASE_ANON_KEY') },
   logLevel: 'warning',
 });
 
@@ -42,6 +46,6 @@ const html = `<!DOCTYPE html>
 </body>
 </html>`;
 
-mkdirSync('dist', { recursive: true });
-writeFileSync('dist/index.html', html);
-console.log(`dist/index.html  ${(html.length / 1024).toFixed(0)} KB`);
+mkdirSync(outFile.replace(/\/[^/]*$/, ''), { recursive: true });
+writeFileSync(outFile, html);
+console.log(`${outFile}  ${(html.length / 1024).toFixed(0)} KB`);

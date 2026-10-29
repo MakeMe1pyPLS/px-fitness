@@ -8,6 +8,7 @@ import { buildSampleData } from '../lib/sample';
 import type { Equipment, InsightRuleId, Profile } from '../lib/types';
 import { DisciplinePicker, GoalPicker, buildValid } from '../components/BuildSelector';
 import { disciplineLabel, goalLabel } from '../lib/goals';
+import { AccountCard } from '../components/Account';
 
 const EXP_LABEL = { beginner: 'New or returning', intermediate: 'Some experience', advanced: 'Experienced' };
 const EQUIP: Equipment[] = ['dumbbells', 'barbell', 'machines', 'kettlebell', 'bands'];
@@ -28,6 +29,8 @@ export function You({ go }: { go: (r: Route) => void }) {
   return (
     <div className="page">
       <header className="page-head"><h1 className="page-title display">You</h1></header>
+
+      <AccountCard />
 
       <section className="card stack">
         <div className="row-between">

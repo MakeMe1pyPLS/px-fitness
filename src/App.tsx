@@ -16,6 +16,9 @@ import { PrefsView } from './screens/diet/Prefs';
 import { Coaching } from './screens/coach/Coaching';
 import { BizClients, BizDesk, BizPayments, BizSchedule, BizSetup } from './screens/coach/Business';
 import { BRAND } from './brand';
+import { NewPasswordSheet, SyncConflict, useCheckoutReturn } from './components/Account';
+import { linkResult } from './linkResult';
+import { useToast } from './components/core';
 
 const COACH_TABS: { id: Route; label: string; icon: keyof typeof Icon }[] = [
   { id: 'biz', label: 'Desk', icon: 'desk' },
@@ -50,6 +53,15 @@ function Shell() {
   const [route, go] = useRoute(hasProfile ? 'home' : 'welcome');
   const [completeId, setCompleteId] = useState<string | null>(null);
   const active = activeSession(data);
+  const toast = useToast();
+  const [resetPw, setResetPw] = useState(false);
+  useCheckoutReturn();
+  useEffect(() => {
+    if (linkResult.error) toast(linkResult.error);
+    else if (linkResult.type === 'recovery') setResetPw(true);
+    else if (linkResult.type) toast('Email confirmed. You’re signed in.');
+    linkResult.type = null; linkResult.error = null;
+  }, [toast]);
 
   // Guard: app screens need a profile.
   const coachView = data.coach.viewAsCoach;
@@ -99,6 +111,8 @@ function Shell() {
         </main>
       </div>
       {active && !coachView && <LivePill go={go} />}
+      <SyncConflict />
+      {resetPw && <NewPasswordSheet onClose={() => setResetPw(false)} />}
 
       <nav className="nav" aria-label="Main">
         <div className="nav-inner">
