@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 export const Portal = ({ children }: { children: React.ReactNode }) => (typeof document === 'undefined' ? <>{children}</> : createPortal(children, document.body));
 import { Store } from '../lib/store';
 import { Cloud } from '../lib/cloud';
+import { Social } from '../lib/social';
 
 // ── Store binding ─────────────────────────────────────────────────────────
 export const store = new Store();
@@ -20,9 +21,15 @@ export function useCloud() {
   return useSyncExternalStore(cloud.subscribe, cloud.get, cloud.get);
 }
 
+export const social = new Social(cloud, store);
+(globalThis as unknown as { __social?: Social }).__social = social;
+export function useSocial() {
+  return useSyncExternalStore(social.subscribe, social.get, social.get);
+}
+
 // ── Routing (hash names only: works inside sandboxed hosts) ───────────────
-export type Route = 'welcome' | 'onboarding' | 'home' | 'workout' | 'progress' | 'insights' | 'you' | 'diet' | 'diet-meals' | 'diet-prep' | 'diet-budget' | 'diet-grocery' | 'diet-near' | 'diet-prefs' | 'diet-saved' | 'coach' | 'biz' | 'biz-clients' | 'biz-schedule' | 'biz-pay' | 'biz-setup';
-const ROUTES: Route[] = ['welcome', 'onboarding', 'home', 'workout', 'progress', 'insights', 'you', 'diet', 'diet-meals', 'diet-prep', 'diet-budget', 'diet-grocery', 'diet-near', 'diet-prefs', 'diet-saved', 'coach', 'biz', 'biz-clients', 'biz-schedule', 'biz-pay', 'biz-setup'];
+export type Route = 'welcome' | 'onboarding' | 'home' | 'workout' | 'progress' | 'insights' | 'you' | 'friends' | 'diet' | 'diet-meals' | 'diet-prep' | 'diet-budget' | 'diet-grocery' | 'diet-near' | 'diet-prefs' | 'diet-saved' | 'coach' | 'biz' | 'biz-clients' | 'biz-schedule' | 'biz-pay' | 'biz-setup';
+const ROUTES: Route[] = ['welcome', 'onboarding', 'home', 'workout', 'progress', 'insights', 'you', 'friends', 'diet', 'diet-meals', 'diet-prep', 'diet-budget', 'diet-grocery', 'diet-near', 'diet-prefs', 'diet-saved', 'coach', 'biz', 'biz-clients', 'biz-schedule', 'biz-pay', 'biz-setup'];
 
 export function useRoute(fallback: Route): [Route, (r: Route) => void] {
   const read = () => {

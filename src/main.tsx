@@ -7,12 +7,20 @@ import { cloud } from './components/core';
 import { parseAuthHash } from './lib/cloud';
 import { cloudEnabled } from './config';
 import { linkResult } from './linkResult';
+import { stashInvite } from './screens/Friends';
 
 installMotionTokens();
 
 // Email links (confirm sign-up, reset password) arrive as #access_token=…
 // Handle them before the hash router sees the URL, then land on the You tab.
 if (cloudEnabled()) {
+  // Invite links: ?invite=CODE#friends → open Add friend with the code filled in.
+  const invite = new URLSearchParams(location.search).get('invite');
+  if (invite) {
+    stashInvite(invite);
+    const q = new URLSearchParams(location.search); q.delete('invite');
+    history.replaceState(null, '', location.pathname + (q.toString() ? `?${q}` : '') + '#friends');
+  }
   const link = parseAuthHash(location.hash);
   if (link) {
     history.replaceState(null, '', location.pathname + location.search + '#you');

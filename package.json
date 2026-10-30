@@ -7,8 +7,9 @@
     "build": "node scripts/build.mjs",
     "dev": "node scripts/build.mjs --dev",
     "test": "node scripts/test.mjs",
-    "e2e": "node scripts/build.mjs && PX_SUPABASE_URL=https://sb.test PX_SUPABASE_ANON_KEY=anon-test PX_OUT=.e2e-cloud/index.html node scripts/build.mjs && node e2e/journeys.mjs && node e2e/diet.mjs && node e2e/px.mjs && node e2e/motion.mjs && node e2e/cloud.mjs",
-    "typecheck": "tsc -p ."
+    "e2e": "node scripts/build.mjs && PX_SUPABASE_URL=https://sb.test PX_SUPABASE_ANON_KEY=anon-test PX_OUT=.e2e-cloud/index.html node scripts/build.mjs && node e2e/journeys.mjs && node e2e/diet.mjs && node e2e/px.mjs && node e2e/motion.mjs && node e2e/cloud.mjs && node e2e/friends.mjs",
+    "typecheck": "tsc -p .",
+    "test:db": "bash supabase/tests/security_test.sh"
   },
   "dependencies": {
     "react": "^19.2.0",

@@ -14,6 +14,8 @@ import { BudgetView, GroceryView } from './screens/diet/GroceryBudget';
 import { NearMeView } from './screens/diet/NearMe';
 import { PrefsView } from './screens/diet/Prefs';
 import { Coaching } from './screens/coach/Coaching';
+import { Friends } from './screens/Friends';
+import { cloudEnabled } from './config';
 import { BizClients, BizDesk, BizPayments, BizSchedule, BizSetup } from './screens/coach/Business';
 import { BRAND } from './brand';
 import { NewPasswordSheet, SyncConflict, useCheckoutReturn } from './components/Account';
@@ -32,6 +34,7 @@ const TABS: { id: Route; label: string; icon: keyof typeof Icon }[] = [
   { id: 'home', label: 'Today', icon: 'today' },
   { id: 'progress', label: 'Progress', icon: 'progress' },
   { id: 'diet', label: 'Meals', icon: 'diet' },
+  ...(cloudEnabled() ? [{ id: 'friends' as Route, label: 'Friends', icon: 'people' as const }] : []),
   { id: 'insights', label: 'Insights', icon: 'insight' },
   { id: 'you', label: 'You', icon: 'you' },
 ];
@@ -74,7 +77,7 @@ function Shell() {
   }, [data.settings.reducedMotion]);
 
   useEffect(() => {
-    const titles: Partial<Record<Route, string>> = { coach: 'Coaching', biz: 'Business desk', 'biz-clients': 'Clients', 'biz-schedule': 'Schedule', 'biz-pay': 'Payments', 'biz-setup': 'Setup', diet: 'Meals', 'diet-prep': 'Meal prep', 'diet-grocery': 'Grocery list', 'diet-near': 'Food near me', 'diet-budget': 'Food budget', 'diet-prefs': 'Nutrition preferences', 'diet-meals': 'Today’s meals', 'diet-saved': 'Saved meals', home: 'Today', workout: 'Workout', progress: 'Progress', insights: 'Insights', you: 'You', onboarding: 'Set up' };
+    const titles: Partial<Record<Route, string>> = { coach: 'Coaching', biz: 'Business desk', 'biz-clients': 'Clients', 'biz-schedule': 'Schedule', 'biz-pay': 'Payments', 'biz-setup': 'Setup', diet: 'Meals', 'diet-prep': 'Meal prep', 'diet-grocery': 'Grocery list', 'diet-near': 'Food near me', 'diet-budget': 'Food budget', 'diet-prefs': 'Nutrition preferences', 'diet-meals': 'Today’s meals', 'diet-saved': 'Saved meals', friends: 'Friends', home: 'Today', workout: 'Workout', progress: 'Progress', insights: 'Insights', you: 'You', onboarding: 'Set up' };
     document.title = titles[appRoute] ? `${titles[appRoute]} · ${BRAND.name}` : `${BRAND.name} — ${BRAND.short}`;
   }, [appRoute]);
 
@@ -94,6 +97,7 @@ function Shell() {
           {appRoute === 'progress' && <Progress go={go} />}
           {appRoute === 'insights' && <Insights go={go} />}
           {appRoute === 'you' && <You go={go} />}
+          {appRoute === 'friends' && <Friends go={go} />}
           {appRoute === 'coach' && <Coaching go={go} />}
           {appRoute === 'biz' && <BizDesk go={go} />}
           {appRoute === 'biz-clients' && <BizClients />}
@@ -115,7 +119,7 @@ function Shell() {
       {resetPw && <NewPasswordSheet onClose={() => setResetPw(false)} />}
 
       <nav className="nav" aria-label="Main">
-        <div className="nav-inner">
+        <div className="nav-inner" style={{ gridTemplateColumns: `repeat(${hasProfile || coachView ? tabs.length : 1}, 1fr)` }}>
           {(() => { const idx = tabs.findIndex((t) => appRoute === t.id || (t.id === 'diet' && appRoute.startsWith('diet'))); return idx >= 0 && (hasProfile || coachView) ? <span className="nav-ind" aria-hidden style={{ width: `calc(100% / ${tabs.length} - 40px)`, transform: `translateX(calc(${idx} * (100% + 40px) + 20px))` }} /> : null; })()}
           {(hasProfile || coachView ? tabs : []).map((t) => {
             const I = Icon[t.icon];

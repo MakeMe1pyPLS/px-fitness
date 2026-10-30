@@ -44,3 +44,28 @@ the app runs fully on-device like before.
   never leaves the device, daily-limit fallback, wrong password, new-phone restore,
   conflict choice, confirmation/reset/expired links, sign-out, no sideways scroll.
 - **Not yet tested against the real services.** Do one full test-mode purchase after setup.
+
+# Friends tab
+
+Free for anyone with an account. Appears in the menu only when accounts are switched on.
+
+- **Adding friends:** each person gets a private 8-character code (no I/O/0/1). Share it or an
+  invite link (`?invite=CODE#friends`). Nobody is searchable. Requests must be accepted;
+  if two people send each other requests, they become friends automatically.
+- **Sharing (all off by default):** plan (workout names and exercises, no weights), recent
+  workouts (last 12 finished: name, date, minutes, exercises, sets), and photos picked one at
+  a time. Check-ins, mood, sleep, notes, effort, meals and coaching are never shared.
+- **Cheers:** friends can cheer each other's workouts and photos.
+- **Ending it:** removing a friend, unsharing a photo, or deleting it on the phone ends access
+  immediately. New friend codes stop old ones from working.
+- **Where the rules live:** `supabase/migrations/0002_friends.sql` (row-level security, private
+  `friend-photos` storage bucket, friends-only reads).
+
+## Tested
+- `supabase/tests/security_test.sh` runs both migrations on a real Postgres 16 with a Supabase
+  stand-in and tries 43 things that should be blocked or allowed (strangers reading profiles or
+  photos, uploading into someone else's folder, accepting your own request, marking yourself
+  paid, beating the AI cap, access after unfriending). All pass.
+- `e2e/friends.mjs`: two people go through setup, invite link, request, accept, feed, cheers,
+  profile, unshare, unfriend. 14/14 pass.
+- Not yet run against the real Supabase project.

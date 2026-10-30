@@ -654,3 +654,29 @@ label.btn { cursor: pointer; }
 @keyframes typing-dot { 0%, 60%, 100% { opacity: 0.35; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-3px); } }
 :root[data-motion='reduced'] .bubble.typing span { animation: none; opacity: 0.7; }
 @media (prefers-reduced-motion: reduce) { :root:not([data-motion='full']) .bubble.typing span { animation: none; opacity: 0.7; } }
+
+/* ── Friends ───────────────────────────────────────────────────────────── */
+.avatar { display: inline-grid; place-items: center; flex: none; border-radius: 50%; color: var(--ink); font-weight: 800; border: 1px solid var(--line-strong); }
+.friend-row { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+.friend-btn { width: 100%; background: none; border: 0; padding: 4px 0; color: inherit; font: inherit; cursor: pointer; border-radius: 12px; }
+.friend-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.feed-card { display: grid; gap: 10px; }
+.feed-photo { display: grid; gap: 6px; padding: 0; background: none; border: 0; color: inherit; text-align: left; cursor: pointer; }
+.feed-photo img, .feed-photo .photo-loading, .feed-photo .photo-missing { width: 100%; aspect-ratio: 4 / 5; object-fit: cover; border-radius: 14px; }
+.photo-loading { display: block; background: linear-gradient(100deg, var(--raised) 30%, var(--line) 50%, var(--raised) 70%) 0 0 / 300% 100%; animation: shimmer 1.4s linear infinite; }
+@keyframes shimmer { to { background-position: -300% 0; } }
+:root[data-motion='reduced'] .photo-loading { animation: none; }
+.photo-missing { display: grid; place-items: center; background: var(--raised); color: var(--ink-3); font-size: var(--t-sm); }
+.photo-full { width: 100%; border-radius: 12px; display: block; }
+.cheer { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border-radius: var(--r-pill); border: 1.5px solid var(--line-strong); background: transparent; color: var(--ink); font: inherit; font-weight: 700; font-size: var(--t-sm); cursor: pointer; transition: background var(--d-2), border-color var(--d-2), transform var(--d-1); }
+.cheer:active { transform: scale(0.96); }
+.cheer.on { background: var(--ember); border-color: var(--ember); color: var(--on-ember); }
+.code-box { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 14px; border: 1.5px dashed var(--line-strong); }
+.code { font-size: 1.5rem; font-weight: 900; letter-spacing: 0.08em; }
+.code-input { font-size: 1.3rem; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 800; }
+.share-pick { position: relative; }
+.share-pick.on { outline: 3px solid var(--ember); outline-offset: -3px; }
+.share-badge { position: absolute; left: 6px; bottom: 6px; padding: 2px 8px; border-radius: var(--r-pill); background: rgba(9, 9, 9, 0.78); color: var(--ink); font-size: var(--t-xs); font-weight: 700; }
+.share-pick.on .share-badge { background: var(--ember); color: var(--on-ember); }
+/* Six tabs on narrow phones: keep labels on one line. */
+@media (max-width: 400px) { .nav a { font-size: 10px; letter-spacing: 0.01em; } }

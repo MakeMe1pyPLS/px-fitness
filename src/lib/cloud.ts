@@ -105,7 +105,7 @@ export class Cloud {
   private writeJSON(k: string, v: unknown) { try { if (v == null) this.ls?.removeItem(k); else this.ls?.setItem(k, JSON.stringify(v)); } catch { /* storage blocked */ } }
 
   // ── low-level HTTP ──────────────────────────────────────────────────────
-  private async req(path: string, init: RequestInit & { auth?: boolean } = {}) {
+  async req(path: string, init: RequestInit & { auth?: boolean } = {}) {
     const headers: Record<string, string> = { apikey: CLOUD.supabaseAnonKey, 'content-type': 'application/json', ...(init.headers as Record<string, string>) };
     if (init.auth !== false) {
       const s = await this.validSession();
@@ -118,6 +118,14 @@ export class Cloud {
     const body = text ? safeParse(text) : null;
     if (!res.ok) throw new CloudError(path.startsWith('/auth') ? friendlyAuthError(res.status, body) : 'The server couldn’t save that.', res.status, body?.error_code || body?.code || '');
     return body;
+  }
+
+  /** Authenticated request that returns the raw Response (file uploads/downloads). */
+  async raw(path: string, init: RequestInit = {}) {
+    const s = await this.validSession();
+    if (!s) throw new CloudError('Signed out', 401);
+    const headers: Record<string, string> = { apikey: CLOUD.supabaseAnonKey, authorization: `Bearer ${s.access_token}`, ...(init.headers as Record<string, string>) };
+    try { return await fetch(CLOUD.supabaseUrl + path, { ...init, headers }); } catch { throw new CloudError('Can’t reach the server. Check your connection.', 0); }
   }
 
   private setSession(s: Session | null) {

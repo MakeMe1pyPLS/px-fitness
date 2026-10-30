@@ -1,6 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, store, useData, useToast } from './core';
 import { PhotoStore, autoMilestones, MAX_PHOTOS } from '../lib/photos';
+import { PhotoShareButton } from '../screens/Friends';
+import { social } from './core';
 import { completedSessions, exerciseBests } from '../lib/stats';
 import { formatShortDate, toDateKey } from '../lib/dates';
 import type { ProgressPhoto } from '../lib/types';
@@ -56,7 +58,7 @@ export function PhotosMilestones() {
         <h2 id="pm-h" className="eyebrow">Photos & milestones</h2>
         <span className="small muted tnum">{list.length}/{MAX_PHOTOS} photos</span>
       </div>
-      <p className="small muted">Progress is more than a scale number. Photos are optional, compressed, and never leave this device.</p>
+      <p className="small muted">Progress is more than a scale number. Photos are optional, compressed, and stay on this device unless you choose to share one with friends.</p>
       <input ref={fileRef} type="file" accept="image/*" className="sr-only" id="photo-in" onChange={(e) => onFile(e.target.files?.[0])} data-testid="photo-input" />
       <label htmlFor="photo-in" className="btn btn-outline" aria-busy={busy}>{busy ? 'Saving…' : <><Icon.plus size={16} /> Add a monthly photo</>}</label>
       {months.map(([m, ps]) => (
@@ -77,10 +79,11 @@ export function PhotosMilestones() {
       {view && (
         <Sheet title={formatShortDate(view.date)} onClose={() => setView(null)}>
           <img src={view.dataUrl} alt={`Progress photo from ${formatShortDate(view.date)}`} style={{ width: '100%', borderRadius: 12 }} />
+          <PhotoShareButton photo={view} />
           <button className="btn btn-danger btn-block" style={{ marginTop: 12 }} onClick={() => { setDel(view); }}>Delete photo</button>
         </Sheet>
       )}
-      {del && <ConfirmDialog danger title="Delete this photo?" body="It’s removed from this device for good." confirmLabel="Delete" onCancel={() => setDel(null)} onConfirm={() => { photos.remove(del.id); setList(photos.list()); setDel(null); setView(null); }} />}
+      {del && <ConfirmDialog danger title="Delete this photo?" body="It’s removed from this device for good, and from friends if you shared it." confirmLabel="Delete" onCancel={() => setDel(null)} onConfirm={() => { const id = del.id; if (social.sharedFor(id)) void social.unsharePhoto(id).catch(() => undefined); photos.remove(id); setList(photos.list()); setDel(null); setView(null); }} />}
       {adding && <MilestoneSheet onClose={() => setAdding(false)} />}
     </section>
   );
