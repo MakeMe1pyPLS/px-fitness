@@ -69,3 +69,23 @@ Free for anyone with an account. Appears in the menu only when accounts are swit
 - `e2e/friends.mjs`: two people go through setup, invite link, request, accept, feed, cheers,
   profile, unshare, unfriend. 14/14 pass.
 - Not yet run against the real Supabase project.
+
+# Collaboration add-ons (Friends tab)
+
+All free with an account; rules in `supabase/migrations/0003_collab.sql`.
+
+- **Train together:** invite a friend to a workout on a day/time. When they accept it shows on
+  both Today screens. Either side can cancel; unfriending cancels open sessions.
+- **Challenges:** group goal (e.g. 12 finished workouts by a date). Owner invites friends; each
+  person's app reports its own count of finished workouts in the date range. Members see each
+  other's names and progress (even members who aren't directly friends).
+- **Coach & clients:** turn on "I'm a coach"; clients connect with the coach's code and the coach
+  accepts. Coaches see the client's recent workouts. Check-in numbers (mood, energy, stress,
+  sleep, soreness, last 2 weeks) only if the client switches them on, never notes. Coaches can
+  leave notes that only that client sees.
+- **Combat sports:** pick a sport, height, weight and next fight. Shared only if switched on.
+  Friends in the same sport within 8 cm and 10% body weight show as "Similar size". Upcoming
+  fights appear in friends' feeds to cheer.
+
+Tested: 35 more database security checks (78 total), 4 more unit tests, 5 more two-person
+browser steps (19 total). Not yet run against the real Supabase project.

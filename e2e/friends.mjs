@@ -12,7 +12,7 @@ const server = createServer((_, res) => { res.writeHead(200, { 'content-type': '
 const origin = `http://127.0.0.1:${server.address().port}/`;
 
 // ── fake Supabase with friends-only rules ─────────────────────────────────
-const db = { users: new Map(), userData: new Map(), profiles: new Map(), friendships: [], photos: [], cheers: [], files: new Map() };
+const db = { users: new Map(), userData: new Map(), profiles: new Map(), friendships: [], photos: [], cheers: [], files: new Map(), coach: [], notes: [], invites: [], challenges: [], members: [] };
 let nextId = 1;
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (u) => `h.${b64u({ sub: u.id, email: u.email, exp: Math.floor(Date.now() / 1000) + 3600 })}.s`;
@@ -79,6 +79,44 @@ async function supabase(route) {
     if (m === 'POST') { if (body.from_user !== me || !areFriends(me, body.to_user)) return json(403, { message: 'row-level security' }); db.cheers.push({ ...body, created_at: new Date().toISOString() }); return json(201); }
     if (m === 'DELETE') { const to = ids(q, 'to_user')[0], t = decodeURIComponent(q.get('target').slice(3)); db.cheers = db.cheers.filter((c) => !(c.from_user === me && c.to_user === to && c.target === t)); return json(204); }
   }
+
+  // ── collaboration add-ons ──
+  if (p === '/rest/v1/rpc/request_coach') {
+    const c = [...db.profiles.values()].find((r) => r.friend_code === body.code);
+    if (!c) return json(200, { ok: false, reason: 'not_found' });
+    if (c.user_id === me) return json(200, { ok: false, reason: 'self' });
+    if (!c.is_coach) return json(200, { ok: false, reason: 'not_coach' });
+    if (!db.coach.some((l) => l.client_id === me && l.coach_id === c.user_id)) db.coach.push({ client_id: me, coach_id: c.user_id, status: 'pending', share_checkins: false, client_shared: {}, created_at: new Date().toISOString() });
+    return json(200, { ok: true, status: 'pending', name: c.display_name });
+  }
+  if (p === '/rest/v1/rpc/accept_client') { const l = db.coach.find((x) => x.coach_id === me && x.client_id === body.client && x.status === 'pending' && db.profiles.get(me)?.is_coach); if (l) l.status = 'accepted'; return json(200, !!l); }
+  if (p === '/rest/v1/rpc/set_coach_share') { const l = db.coach.find((x) => x.client_id === me && x.coach_id === body.coach && x.status === 'accepted'); if (l) { l.share_checkins = body.checkins_on; const c = { ...body.payload }; if (!body.checkins_on) delete c.checkins; l.client_shared = c; } return json(200, !!l); }
+  if (p === '/rest/v1/rpc/my_coach_links') return json(200, db.coach.filter((l) => [l.client_id, l.coach_id].includes(me)).map((l) => { const iCoach = l.coach_id === me; const other = iCoach ? l.client_id : l.coach_id; return { other_id: other, display_name: db.profiles.get(other)?.display_name ?? null, i_am: iCoach ? 'coach' : 'client', status: l.status, share_checkins: l.share_checkins, client_shared: iCoach && l.status !== 'accepted' ? {} : l.client_shared, created_at: l.created_at }; }));
+  if (p === '/rest/v1/coach_links' && m === 'DELETE') { const c = ids(q, 'client_id')[0], k = ids(q, 'coach_id')[0]; if ([c, k].includes(me)) db.coach = db.coach.filter((l) => !(l.client_id === c && l.coach_id === k)); return json(204); }
+  if (p === '/rest/v1/coach_notes') {
+    if (m === 'GET') return json(200, db.notes.filter((n) => [n.coach_id, n.client_id].includes(me)));
+    if (m === 'POST') { if (body.coach_id !== me || !db.coach.some((l) => l.coach_id === me && l.client_id === body.client_id && l.status === 'accepted')) return json(403, {}); const n = { id: uuid(), created_at: new Date().toISOString(), ...body }; db.notes.unshift(n); return json(201, [n]); }
+    if (m === 'DELETE') { const id = ids(q, 'id')[0]; db.notes = db.notes.filter((n) => !(n.id === id && n.coach_id === me)); return json(204); }
+  }
+  if (p === '/rest/v1/train_invites') {
+    if (m === 'GET') return json(200, db.invites.filter((i) => [i.from_user, i.to_user].includes(me)));
+    if (m === 'POST') { if (body.from_user !== me || !areFriends(me, body.to_user)) return json(403, {}); const i = { id: uuid(), status: 'pending', created_at: new Date().toISOString(), ...body }; db.invites.push(i); return json(201, [i]); }
+  }
+  if (p === '/rest/v1/rpc/respond_train') { const i = db.invites.find((x) => x.id === body.invite); const r = body.response; const ok = !!i && ['pending', 'accepted'].includes(i.status) && ((i.to_user === me && ['accepted', 'declined', 'cancelled'].includes(r)) || (i.from_user === me && r === 'cancelled')); if (ok) i.status = r; return json(200, ok); }
+  const inCh = (c, u) => db.members.some((x) => x.challenge_id === c && x.user_id === u);
+  if (p === '/rest/v1/challenges') {
+    if (m === 'GET') return json(200, db.challenges.filter((c) => c.owner === me || inCh(c.id, me)));
+    if (m === 'POST') { const c = { id: uuid(), created_at: new Date().toISOString(), ...body }; db.challenges.push(c); db.members.push({ challenge_id: c.id, user_id: me, status: 'joined', progress: 0 }); return json(201, [c]); }
+    if (m === 'DELETE') { const id = ids(q, 'id')[0]; if (db.challenges.find((c) => c.id === id)?.owner === me) { db.challenges = db.challenges.filter((c) => c.id !== id); db.members = db.members.filter((x) => x.challenge_id !== id); } return json(204); }
+  }
+  if (p === '/rest/v1/challenge_members') {
+    if (m === 'GET') return json(200, db.members.filter((x) => inCh(x.challenge_id, me)));
+    if (m === 'DELETE') { const c = ids(q, 'challenge_id')[0]; db.members = db.members.filter((x) => !(x.challenge_id === c && x.user_id === me)); return json(204); }
+  }
+  if (p === '/rest/v1/rpc/invite_to_challenge') { const c = db.challenges.find((x) => x.id === body.challenge && x.owner === me); if (!c || !areFriends(me, body.friend)) return json(200, false); if (!inCh(c.id, body.friend)) db.members.push({ challenge_id: c.id, user_id: body.friend, status: 'invited', progress: 0 }); return json(200, true); }
+  if (p === '/rest/v1/rpc/join_challenge') { const x = db.members.find((y) => y.challenge_id === body.challenge && y.user_id === me && y.status === 'invited'); if (x) x.status = 'joined'; return json(200, !!x); }
+  if (p === '/rest/v1/rpc/set_challenge_progress') { const x = db.members.find((y) => y.challenge_id === body.challenge && y.user_id === me && y.status === 'joined'); if (x) x.progress = body.n; return json(200, !!x); }
+  if (p === '/rest/v1/rpc/my_challenge_people') return json(200, [...new Set(db.members.filter((x) => db.members.some((y) => y.challenge_id === x.challenge_id && y.user_id === me)).map((x) => x.user_id))].map((u) => ({ user_id: u, display_name: db.profiles.get(u)?.display_name })));
   const store = p.match(/^\/storage\/v1\/object\/(?:authenticated\/)?friend-photos\/(.+)$/);
   if (store) {
     const path = store[1], owner = path.split('/')[0];
@@ -271,6 +309,114 @@ await step('Alex sees the cheer, then shares the plan too', async () => {
   await bri.keyboard.press('Escape');
 });
 
+
+await step('train together: Alex invites Bri for today; Bri accepts; it shows on Today', async () => {
+  page = alex;
+  await alex.goto(origin + '#friends');
+  await alex.getByTestId('plan-session').click();
+  await alex.getByTestId('pt-day').fill(await alex.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }));
+  await alex.getByTestId('pt-workout').fill('Push Day');
+  await alex.getByTestId('pt-send').click();
+  await toast(alex, 'Invite sent to Bri');
+  await alex.getByTestId('train-item').getByText('waiting for a reply').waitFor();
+  page = bri;
+  await bri.goto(origin + '#friends');
+  await bri.reload();
+  await bri.getByTestId('train-invite').getByText(/Alex\s*wants to train together/).waitFor();
+  await bri.getByTestId('train-accept').click();
+  await toast(bri, 'It’s a plan');
+  await bri.goto(origin + '#home');
+  await bri.getByTestId('train-today').getByText(/Push Day\s*with Alex/).waitFor();
+  await bri.screenshot({ path: 'e2e/shots/collab-today.png' });
+});
+
+await step('challenges: Alex starts one, Bri joins, both progress bars show', async () => {
+  page = alex;
+  await alex.reload();
+  await alex.getByTestId('new-challenge').click();
+  await alex.getByTestId('ch-name').fill('12 in November');
+  await alex.getByTestId('ch-create').click();
+  await toast(alex, 'Challenge started. Invites sent.');
+  page = bri;
+  await bri.goto(origin + '#friends');
+  await bri.reload();
+  await bri.getByTestId('challenge-invite').getByText('12 in November').waitFor();
+  await bri.getByTestId('challenge-join').click();
+  await bri.getByTestId('challenge').getByText('12 in November').waitFor();
+  await bri.getByTestId('challenge').locator('.ch-row').nth(1).waitFor();
+  const rows = await bri.getByTestId('challenge').locator('.ch-row').allTextContents();
+  assert.ok(rows.some((r) => /Alex.*1\/12/.test(r)), 'Alex reported 1 finished workout: ' + rows.join(' | '));
+  assert.ok(rows.some((r) => /You.*0\/12/.test(r)), rows.join(' | '));
+  await bri.screenshot({ path: 'e2e/shots/collab-challenge.png' });
+});
+
+await step('coach: Alex turns on coach mode; Bri connects; check-ins only after Bri allows', async () => {
+  page = alex;
+  await alex.goto(origin + '#friends');
+  await alex.getByRole('switch', { name: 'Coach mode' }).click();
+  await toast(alex, 'Coach mode on');
+  page = bri;
+  await bri.evaluate(() => { const s = globalThis.__kova; const d = new Date(); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; s.saveCheckin(k, { mood: 2, energy: 2, sleepHours: 5, note: 'PRIVATE bad night' }); });
+  await bri.goto(origin + '#friends');
+  await bri.getByTestId('connect-coach').click();
+  await bri.getByTestId('coach-code').fill(alexCode);
+  await bri.getByTestId('coach-send').click();
+  await toast(bri, 'Request sent to Alex');
+  page = alex;
+  await alex.reload();
+  await alex.getByTestId('client-request').getByText('Bri').waitFor();
+  await alex.getByTestId('client-accept').click();
+  await toast(alex, 'Bri is now your client');
+  page = bri;
+  await bri.reload();
+  await bri.getByTestId('my-coach').getByText('Connected').waitFor();
+  await bri.waitForFunction(() => true);
+  await new Promise((r) => setTimeout(r, 800));
+  assert.equal(db.coach[0].client_shared.checkins, undefined, 'check-ins private by default');
+  await bri.getByRole('switch', { name: 'Share check-ins with my coach' }).click();
+  await toast(bri, 'Check-ins shared with your coach');
+  assert.equal(db.coach[0].client_shared.checkins[0].mood, 2);
+  assert.ok(!JSON.stringify(db.coach[0].client_shared).includes('PRIVATE'), 'notes never shared');
+});
+
+await step('coach: Alex sees Bri’s check-ins and sends a note Bri can read', async () => {
+  page = alex;
+  await alex.reload();
+  await alex.getByTestId('client').getByText('Bri').click();
+  await alex.getByTestId('client-checkins').waitFor();
+  await alex.getByTestId('note-body').fill('Rough sleep. Keep today light and get to bed early.');
+  await alex.getByTestId('note-send').click();
+  await toast(alex, 'Note sent');
+  await alex.screenshot({ path: 'e2e/shots/collab-client.png' });
+  await alex.keyboard.press('Escape');
+  page = bri;
+  await bri.reload();
+  await bri.getByTestId('coach-note').getByText(/Keep today light/).waitFor();
+});
+
+await step('combat: similar-size badge and fight night in the feed', async () => {
+  page = alex;
+  await alex.getByTestId('cb-sport').selectOption('Boxing');
+  await alex.getByTestId('cb-height').fill('180');
+  await alex.getByTestId('cb-weight').fill('80');
+  const d = await alex.evaluate(() => { const x = new Date(Date.now() + 10 * 86400000); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; });
+  await alex.getByTestId('cb-date').fill(d);
+  await alex.getByTestId('cb-event').fill('Golden Gloves');
+  await alex.getByTestId('cb-share').click();
+  await toast(alex, 'Shared with friends');
+  page = bri;
+  await bri.getByTestId('cb-sport').selectOption('Boxing');
+  await bri.getByTestId('cb-height').fill('177');
+  await bri.getByTestId('cb-weight').fill('83');
+  await bri.getByTestId('cb-share').click();
+  await toast(bri, 'Shared with friends');
+  await bri.reload();
+  await bri.getByTestId('size-matches').getByText('Alex').waitFor();
+  await bri.getByTestId('size-badge').waitFor();
+  await bri.getByText('Fight night: Golden Gloves').waitFor();
+  await bri.screenshot({ path: 'e2e/shots/collab-feed.png' });
+});
+
 await step('unsharing a photo removes it for friends', async () => {
   page = alex;
   await alex.getByTestId('choose-photos').click();
@@ -282,7 +428,8 @@ await step('unsharing a photo removes it for friends', async () => {
   page = bri;
   await bri.reload();
   await bri.getByTestId('feed-item').first().waitFor();
-  assert.equal(await bri.getByTestId('feed-item').count(), 1);
+  assert.equal(await bri.locator('.feed-photo').count(), 0, 'photo gone from the feed');
+  assert.equal(await bri.getByText('Finished Push Day').count(), 1, 'workout still there');
 });
 
 await step('removing a friend ends access both ways', async () => {

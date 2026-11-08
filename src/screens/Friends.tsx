@@ -5,6 +5,7 @@ import { photos as localPhotos } from '../components/PhotosMilestones';
 import { buildFeed, formatCode, normalizeCode, type FeedItem, type SharedPhoto, type SocialProfile } from '../lib/social';
 import { formatShortDate } from '../lib/dates';
 import type { ProgressPhoto } from '../lib/types';
+import { Challenges, CoachSection, CombatCard, ExtraRequests, SizeMatchBadge, TrainTogether } from './FriendsExtras';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong. Please try again.');
 const INVITE_KEY = 'px:invite';
@@ -127,6 +128,7 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
   const describeTarget = (t: string) => {
     if (t.startsWith('w:')) return me.shared?.recent?.find((w) => `w:${w.id}` === t)?.name ?? 'a workout';
     if (t.startsWith('p:')) return 'your photo';
+    if (t.startsWith('f:')) return 'your upcoming fight';
     return 'your progress';
   };
 
@@ -150,6 +152,10 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
           ))}
         </section>
       )}
+
+      <ExtraRequests />
+      <TrainTogether />
+      <Challenges />
 
       {friends.length === 0 ? (
         <section className="card card-ink stack" data-testid="invite-card">
@@ -178,7 +184,7 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
           {friends.map((f) => (
             <button key={f.user_id} className="friend-row friend-btn" onClick={() => setOpen(s.friends[f.user_id] ?? { user_id: f.user_id, display_name: f.display_name ?? 'Friend', share_routine: false, share_workouts: false, shared: {}, updated_at: '' })} data-testid="friend">
               <Avatar name={f.display_name ?? '?'} />
-              <span className="grow" style={{ textAlign: 'left' }}><b>{f.display_name}</b><span className="small muted" style={{ display: 'block' }}>{sharingSummary(s.friends[f.user_id], s.photos.filter((p) => p.user_id === f.user_id).length)}</span></span>
+              <span className="grow" style={{ textAlign: 'left' }}><b>{f.display_name}</b> <SizeMatchBadge friendId={f.user_id} /><span className="small muted" style={{ display: 'block' }}>{sharingSummary(s.friends[f.user_id], s.photos.filter((p) => p.user_id === f.user_id).length)}</span></span>
               <Icon.arrow size={18} />
             </button>
           ))}
@@ -197,6 +203,9 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
           {outgoing.map((o) => <div key={o.user_id} className="friend-row"><Avatar name={o.display_name ?? '?'} /><b className="grow">{o.display_name}</b><button className="btn btn-ghost btn-sm" onClick={() => social.remove(o.user_id).catch((e) => toast(errMsg(e)))}>Cancel</button></div>)}
         </section>
       )}
+
+      <CoachSection />
+      <CombatCard />
 
       <section className="card stack" data-testid="my-sharing">
         <h2 className="eyebrow">What you share</h2>
@@ -237,7 +246,12 @@ function FeedCard({ it, onPhoto, onOpen }: { it: FeedItem; onPhoto: (p: SharedPh
         <Avatar name={it.name} size={34} />
         <span className="grow" style={{ textAlign: 'left' }}><b>{it.name}</b> <span className="small muted">· {formatShortDate(it.date)}</span></span>
       </button>
-      {it.kind === 'workout' ? (
+      {it.kind === 'fight' ? (
+        <div className="stack" style={{ gap: 4 }}>
+          <p><b>Fight night{it.combat.fightName ? `: ${it.combat.fightName}` : ''}</b></p>
+          <p className="small muted">{it.combat.sport} · {formatShortDate(it.date)}. Send some support.</p>
+        </div>
+      ) : it.kind === 'workout' ? (
         <div className="stack" style={{ gap: 4 }}>
           <p><b>Finished {it.workout.name}</b>{it.workout.short ? ' (short version)' : ''}</p>
           <p className="small muted">{[it.workout.minutes ? `${it.workout.minutes} min` : null, `${it.workout.sets} set${it.workout.sets === 1 ? "" : "s"}`, it.workout.exercises.slice(0, 4).join(', ') + (it.workout.exercises.length > 4 ? '…' : '')].filter(Boolean).join(' · ')}</p>
@@ -248,7 +262,7 @@ function FeedCard({ it, onPhoto, onOpen }: { it: FeedItem; onPhoto: (p: SharedPh
           {it.photo.caption && <span className="small">{it.photo.caption}</span>}
         </button>
       )}
-      <div><CheerButton to={it.user} target={it.key} label={it.kind === 'workout' ? `${it.name}’s ${it.workout.name}` : `${it.name}’s photo`} /></div>
+      <div><CheerButton to={it.user} target={it.key} label={it.kind === 'workout' ? `${it.name}’s ${it.workout.name}` : it.kind === 'fight' ? `${it.name}’s fight` : `${it.name}’s photo`} /></div>
     </article>
   );
 }

@@ -680,3 +680,15 @@ label.btn { cursor: pointer; }
 .share-pick.on .share-badge { background: var(--ember); color: var(--on-ember); }
 /* Six tabs on narrow phones: keep labels on one line. */
 @media (max-width: 400px) { .nav a { font-size: 10px; letter-spacing: 0.01em; } }
+
+/* ── Friends: collaboration add-ons ────────────────────────────────────── */
+.ch-row { display: grid; grid-template-columns: minmax(56px, 88px) 1fr auto; align-items: center; gap: 10px; }
+.ch-row > .small:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ch-bar { display: block; height: 10px; border-radius: var(--r-pill); background: var(--raised); overflow: hidden; border: 1px solid var(--line); }
+.ch-bar > span { display: block; height: 100%; background: var(--ember); border-radius: inherit; transition: width var(--d-3) var(--ease-smooth, ease); }
+.check-row { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+.check-row input { width: 20px; height: 20px; accent-color: var(--ember); }
+.note-bubble { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); line-height: 1.45; }
+.mini-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.mini-table th, .mini-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.mini-table th { color: var(--ink-3); font-weight: 600; }

@@ -84,6 +84,55 @@ expect "remove: cheers cleared" "0" "$(q -c "select count(*) from cheers")"
 expect "re-request after removal works" "pending" "$(as $B "select request_friend('AAAA2222')->>'status'")"
 expect "crossing requests auto-accept" "accepted" "$(as $A "select request_friend('BBBB3333')->>'status'")"
 
+# ── coach & clients ────────────────────────────────────────────────────────
+D=dddddddd-0000-0000-0000-000000000004
+q -c "insert into auth.users values ('$D','d@x')" >/dev/null
+as $D "insert into social_profiles (user_id, display_name, friend_code) values ('$D','Dee','DDDD5555')" >/dev/null
+expect "coach: can't link to someone who isn't a coach" "not_coach" "$(as $B "select request_coach('DDDD5555')->>'reason'")"
+as $D "update social_profiles set is_coach = true where user_id = '$D'" >/dev/null
+expect "coach: client requests by code" "pending" "$(as $B "select request_coach('DDDD5555')->>'status'")"
+expect "coach: client can't share before acceptance" "f" "$(as $B "select set_coach_share('$D', true, '{\"recent\":[1]}')")"
+expect "coach: client can't accept for the coach" "f" "$(as $B "select accept_client('$B')")"
+expect_err "coach: can't create an accepted link directly" "$(as $C "insert into coach_links (client_id, coach_id, status) values ('$C','$D','accepted')")"
+expect "coach: coach accepts" "t" "$(as $D "select accept_client('$B')")"
+expect "coach: check-ins dropped while sharing is off" "1|" "$(as $B "select set_coach_share('$D', false, '{\"recent\":[1],\"checkins\":[{\"mood\":2}]}')::int || '|' || coalesce((select client_shared->>'checkins' from coach_links where client_id='$B'),'')")"
+expect "coach: coach sees workouts" "[1]" "$(as $D "select client_shared->>'recent' from my_coach_links() where other_id='$B'")"
+as $B "select set_coach_share('$D', true, '{\"recent\":[1],\"checkins\":[{\"mood\":2}]}')" >/dev/null
+expect "coach: check-ins visible once switched on" "[{\"mood\": 2}]" "$(as $D "select client_shared->>'checkins' from my_coach_links() where other_id='$B'")"
+expect "coach: other people see nothing" "0" "$(as $C "select count(*) from coach_links")"
+expect_err "coach: coach can't rewrite the client's data" "$(as $D "update coach_links set client_shared = '{}' where client_id='$B' returning 1" ; as $D "select case when (select client_shared from coach_links where client_id='$B') = '{}'::jsonb then 'changed' else 'error: unchanged' end")"
+as $D "insert into coach_notes (coach_id, client_id, body) values ('$D','$B','Great week, add a 4th set')" >/dev/null
+expect "coach: client reads the note" "Great week, add a 4th set" "$(as $B "select body from coach_notes")"
+expect_err "coach: can't write notes to non-clients" "$(as $D "insert into coach_notes (coach_id, client_id, body) values ('$D','$C','hi')")"
+expect_err "coach: can't post notes as the coach" "$(as $C "insert into coach_notes (coach_id, client_id, body) values ('$D','$B','fake')")"
+expect "coach: stranger can't read notes" "0" "$(as $C "select count(*) from coach_notes")"
+
+# ── train together (needs friends: re-friend A and B) ───────────────────────
+expect "train: can't invite a non-friend" "1" "$(as $C "insert into train_invites (from_user,to_user,day,workout) values ('$C','$A','2026-11-20','Legs')" 2>&1 | grep -ciE 'error|violates')"
+expect "train: friends can invite" "pending" "$(as $A "insert into train_invites (from_user,to_user,day,at_time,workout) values ('$A','$B','2026-11-20','18:00','Push Day') returning status")"
+INV=$(q -c "select id from train_invites limit 1")
+expect "train: sender can't accept their own invite" "f" "$(as $A "select respond_train('$INV','accepted')")"
+expect "train: outsider can't touch it" "f" "$(as $C "select respond_train('$INV','declined')")"
+expect "train: outsider can't see it" "0" "$(as $C "select count(*) from train_invites")"
+expect "train: invitee accepts" "t" "$(as $B "select respond_train('$INV','accepted')")"
+expect_err "train: can't insert as someone else" "$(as $C "insert into train_invites (from_user,to_user,day,workout) values ('$A','$B','2026-11-21','x')")"
+
+# ── challenges ─────────────────────────────────────────────────────────────
+CH=$(as $A "insert into challenges (owner,name,goal,starts,ends) values ('$A','12 in Nov',12,'2026-11-01','2026-11-30') returning id")
+expect "challenge: owner joined automatically" "joined" "$(as $A "select status from challenge_members where challenge_id='$CH'")"
+expect "challenge: can invite a friend" "t" "$(as $A "select invite_to_challenge('$CH','$B')")"
+expect "challenge: can't invite a non-friend" "f" "$(as $A "select invite_to_challenge('$CH','$C')")"
+expect "challenge: non-owner can't invite" "f" "$(as $B "select invite_to_challenge('$CH','$C')")"
+expect "challenge: outsider can't see it" "0" "$(as $C "select count(*) from challenges")"
+expect "challenge: invited can't post progress before joining" "f" "$(as $B "select set_challenge_progress('$CH', 5)")"
+expect "challenge: invitee joins" "t" "$(as $B "select join_challenge('$CH')")"
+expect "challenge: progress saved" "t" "$(as $B "select set_challenge_progress('$CH', 5)")"
+expect "challenge: members see each other" "2" "$(as $B "select count(*) from challenge_members where challenge_id='$CH'")"
+expect "challenge: can't edit someone else's progress" "0" "$(as $B "with u as (update challenge_members set progress=99 where user_id='$A' returning 1) select count(*) from u")"
+expect_err "challenge: can't add yourself" "$(as $C "insert into challenge_members (challenge_id,user_id,status) values ('$CH','$C','joined')")"
+expect "challenge: names visible to members" "Alex,Bri" "$(as $B "select string_agg(display_name, ',' order by display_name) from my_challenge_people()")"
+expect "unfriend cancels open training" "cancelled" "$(as $B "delete from friendships" >/dev/null; q -c "select status from train_invites where id='$INV'")"
+
 dropdb $DB
 echo; echo "$pass passed, $fail failed"
 [ $fail -eq 0 ]

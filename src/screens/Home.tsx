@@ -1,3 +1,4 @@
+import { TrainTodayCard } from './FriendsExtras';
 import React, { useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Icon, store, useData, useToast, type Route } from '../components/core';
@@ -203,6 +204,8 @@ export function Home({ go }: { go: (r: Route) => void }) {
           </div>
         </Reveal>
       ) : null}
+
+      <TrainTodayCard />
 
       {p.checkinsEnabled && (
         <Reveal i={i++} as="section" className="card stack" aria-labelledby="ci-h">

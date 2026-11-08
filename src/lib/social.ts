@@ -9,21 +9,31 @@
 
 import type { AppData, ProgressPhoto } from './types';
 import { getExercise } from './exercises';
+import { toDateKey } from './dates';
 import { CloudError, type Cloud } from './cloud';
 import type { Store } from './store';
 
 export interface SharedRoutine { name: string; focus: string; exercises: { name: string; sets: number; target: string }[] }
 export interface SharedWorkout { id: string; name: string; date: string; minutes: number | null; short: boolean; exercises: string[]; sets: number }
-export interface SharedSnapshot { routine?: SharedRoutine[]; recent?: SharedWorkout[] }
+export const COMBAT_SPORTS = ['Boxing', 'Kickboxing', 'Muay Thai', 'MMA', 'Wrestling', 'Jiu-jitsu'] as const;
+export interface CombatInfo { sport: string; heightCm?: number; weightKg?: number; fightDate?: string; fightName?: string }
+export interface SharedSnapshot { routine?: SharedRoutine[]; recent?: SharedWorkout[]; combat?: CombatInfo }
 
-export interface SocialProfile { user_id: string; display_name: string; friend_code?: string; share_routine: boolean; share_workouts: boolean; shared: SharedSnapshot; updated_at: string }
+export interface SocialProfile { user_id: string; display_name: string; friend_code?: string; share_routine: boolean; share_workouts: boolean; share_combat?: boolean; is_coach?: boolean; shared: SharedSnapshot; updated_at: string }
+export interface SharedCheckin { date: string; mood?: number; energy?: number; stress?: number; sleepHours?: number; soreness?: number }
+export interface CoachLink { other_id: string; display_name: string | null; i_am: 'coach' | 'client'; status: 'pending' | 'accepted'; share_checkins: boolean; client_shared: { recent?: SharedWorkout[]; checkins?: SharedCheckin[] }; created_at: string }
+export interface CoachNote { id: string; coach_id: string; client_id: string; body: string; created_at: string }
+export interface TrainInvite { id: string; from_user: string; to_user: string; day: string; at_time: string | null; workout: string; note: string | null; status: 'pending' | 'accepted' | 'declined' | 'cancelled'; created_at: string }
+export interface Challenge { id: string; owner: string; name: string; goal: number; starts: string; ends: string; created_at: string }
+export interface ChallengeMember { challenge_id: string; user_id: string; status: 'invited' | 'joined'; progress: number }
 export interface Connection { user_id: string; display_name: string | null; status: 'pending' | 'accepted'; incoming: boolean; created_at: string }
 export interface SharedPhoto { id: string; user_id: string; local_id: string; path: string; taken_on: string; caption: string | null; created_at: string }
 export interface Cheer { from_user: string; to_user: string; target: string; created_at: string }
 
 export type FeedItem =
   | { kind: 'workout'; key: string; user: string; name: string; date: string; workout: SharedWorkout }
-  | { kind: 'photo'; key: string; user: string; name: string; date: string; photo: SharedPhoto };
+  | { kind: 'photo'; key: string; user: string; name: string; date: string; photo: SharedPhoto }
+  | { kind: 'fight'; key: string; user: string; name: string; date: string; combat: CombatInfo };
 
 export interface SocialState {
   loaded: boolean;
@@ -34,6 +44,12 @@ export interface SocialState {
   friends: Record<string, SocialProfile>;
   photos: SharedPhoto[]; // mine and friends'
   cheers: Cheer[];
+  coachLinks: CoachLink[];
+  notes: CoachNote[];
+  invites: TrainInvite[];
+  challenges: Challenge[];
+  members: ChallengeMember[];
+  people: Record<string, string>; // user id → display name (friends, coach links, challenge members)
 }
 
 // ── pure helpers (unit-tested) ──────────────────────────────────────────────
@@ -42,6 +58,11 @@ export function makeFriendCode(rand: (n: number) => number = secureRandom): stri
   let s = '';
   for (let i = 0; i < 8; i++) s += CODE_ALPHABET[rand(CODE_ALPHABET.length)];
   return s;
+}
+function addDaysKey(n: number) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 function secureRandom(n: number) {
   const a = new Uint32Array(1);
@@ -77,7 +98,7 @@ export function buildSnapshot(data: AppData, opts: { routine: boolean; workouts:
 }
 
 /** Friends' shared workouts and photos, newest first. */
-export function buildFeed(friends: Record<string, SocialProfile>, photos: SharedPhoto[], limit = 40): FeedItem[] {
+export function buildFeed(friends: Record<string, SocialProfile>, photos: SharedPhoto[], limit = 40, today = toDateKey(new Date())): FeedItem[] {
   const items: FeedItem[] = [];
   for (const f of Object.values(friends)) {
     if (!f.share_workouts) continue;
@@ -87,7 +108,37 @@ export function buildFeed(friends: Record<string, SocialProfile>, photos: Shared
     const f = friends[p.user_id];
     if (f) items.push({ kind: 'photo', key: `p:${p.id}`, user: p.user_id, name: f.display_name, date: p.taken_on, photo: p });
   }
+  for (const f of Object.values(friends)) {
+    const c = f.share_combat ? f.shared?.combat : undefined;
+    if (c?.fightDate && c.fightDate >= today) items.push({ kind: 'fight', key: `f:${c.fightDate}`, user: f.user_id, name: f.display_name, date: c.fightDate, combat: c });
+  }
   return items.sort((a, b) => b.date.localeCompare(a.date) || b.key.localeCompare(a.key)).slice(0, limit);
+}
+
+/** Friends close to your size in the same sport: within 8 cm and 10% body weight. */
+export function sizeMatches(me: CombatInfo | undefined, friends: Record<string, SocialProfile>): string[] {
+  if (!me?.heightCm || !me.weightKg) return [];
+  return Object.values(friends).filter((f) => {
+    const c = f.share_combat ? f.shared?.combat : undefined;
+    if (!c?.heightCm || !c.weightKg || c.sport !== me.sport) return false;
+    return Math.abs(c.heightCm - me.heightCm!) <= 8 && Math.abs(c.weightKg - me.weightKg!) / me.weightKg! <= 0.1;
+  }).map((f) => f.user_id);
+}
+
+/** Finished workouts inside a challenge's dates. */
+export function challengeCount(data: AppData, starts: string, ends: string): number {
+  return data.sessions.filter((s) => s.status === 'completed' && s.plannedFor >= starts && s.plannedFor <= ends).length;
+}
+
+/** What a coach sees: recent workouts always; check-in numbers only if switched on. Never notes. */
+export function buildCoachShare(data: AppData, checkins: boolean, today = toDateKey(new Date())): { recent?: SharedWorkout[]; checkins?: SharedCheckin[] } {
+  const out: { recent?: SharedWorkout[]; checkins?: SharedCheckin[] } = { recent: buildSnapshot(data, { routine: false, workouts: true }).recent ?? [] };
+  if (checkins) {
+    const from = new Date(new Date(today + 'T12:00:00Z').getTime() - 13 * 86400000).toISOString().slice(0, 10);
+    out.checkins = data.checkins.filter((c) => c.date >= from && c.date <= today).sort((a, b) => b.date.localeCompare(a.date))
+      .map((c) => ({ date: c.date, mood: c.mood, energy: c.energy, stress: c.stress, sleepHours: c.sleepHours, soreness: c.soreness }));
+  }
+  return out;
 }
 
 export const pairOf = (a: string, b: string): [string, string] => (a < b ? [a, b] : [b, a]);
@@ -103,6 +154,7 @@ export function dataUrlToBlob(dataUrl: string): Blob {
 
 const REQUEST_ERRORS: Record<string, string> = {
   not_found: 'No one has that code. Check it and try again.',
+  not_coach: 'That person hasn’t turned on coach mode yet.',
   self: 'That’s your own code.',
   already_friends: 'You’re already friends.',
   no_profile: 'Set up your Friends profile first.',
@@ -112,7 +164,7 @@ const REQUEST_ERRORS: Record<string, string> = {
 
 // ── live state ──────────────────────────────────────────────────────────────
 type Listener = () => void;
-const empty = (): SocialState => ({ loaded: false, loading: false, error: null, me: null, connections: [], friends: {}, photos: [], cheers: [] });
+const empty = (): SocialState => ({ loaded: false, loading: false, error: null, me: null, connections: [], friends: {}, photos: [], cheers: [], coachLinks: [], notes: [], invites: [], challenges: [], members: [], people: {} });
 
 export class Social {
   private state: SocialState = empty();
@@ -158,7 +210,22 @@ export class Social {
       ]);
       const friends: Record<string, SocialProfile> = {};
       for (const p of profiles ?? []) friends[p.user_id] = p;
-      this.set({ loaded: true, loading: false, me: mine?.[0] ?? null, connections: connections ?? [], friends, photos: photos ?? [], cheers: cheers ?? [] });
+      const [coachLinks, notes, invites, challenges, members, people] = await Promise.all([
+        this.cloud.req('/rest/v1/rpc/my_coach_links', { method: 'POST', body: '{}' }) as Promise<CoachLink[]>,
+        this.cloud.req('/rest/v1/coach_notes?select=*&order=created_at.desc&limit=100') as Promise<CoachNote[]>,
+        this.cloud.req(`/rest/v1/train_invites?select=*&day=gte.${addDaysKey(-1)}&order=day.asc&limit=100`) as Promise<TrainInvite[]>,
+        this.cloud.req(`/rest/v1/challenges?select=*&ends=gte.${addDaysKey(-7)}&order=ends.asc`) as Promise<Challenge[]>,
+        this.cloud.req('/rest/v1/challenge_members?select=challenge_id,user_id,status,progress') as Promise<ChallengeMember[]>,
+        this.cloud.req('/rest/v1/rpc/my_challenge_people', { method: 'POST', body: '{}' }) as Promise<{ user_id: string; display_name: string }[]>,
+      ]);
+      const names: Record<string, string> = {};
+      for (const x of people ?? []) names[x.user_id] = x.display_name;
+      for (const x of coachLinks ?? []) if (x.display_name) names[x.other_id] = x.display_name;
+      for (const x of connections ?? []) if (x.display_name) names[x.user_id] = x.display_name;
+      if (mine?.[0]) names[me] = mine[0].display_name;
+      this.set({ loaded: true, loading: false, me: mine?.[0] ?? null, connections: connections ?? [], friends, photos: photos ?? [], cheers: cheers ?? [], coachLinks: coachLinks ?? [], notes: notes ?? [], invites: invites ?? [], challenges: challenges ?? [], members: members ?? [], people: names });
+      void this.syncProgress();
+      void this.pushCoachShares();
     } catch (e) {
       this.set({ loading: false, loaded: true, error: e instanceof Error ? e.message : 'Couldn’t load friends.' });
     }
@@ -202,7 +269,7 @@ export class Social {
     const routine = patch.share_routine ?? cur.share_routine;
     const workouts = patch.share_workouts ?? cur.share_workouts;
     if (patch.display_name !== undefined && !validName(patch.display_name)) throw new CloudError('Pick a name between 1 and 40 characters.');
-    await this.patchMe({ ...patch, ...(patch.display_name !== undefined ? { display_name: patch.display_name.trim() } : {}), shared: buildSnapshot(this.store.get(), { routine, workouts }) });
+    await this.patchMe({ ...patch, ...(patch.display_name !== undefined ? { display_name: patch.display_name.trim() } : {}), shared: this.snapshot(routine, workouts) });
   }
 
   async newCode() {
@@ -211,19 +278,140 @@ export class Social {
     }
   }
 
-  /** Keep the shared snapshot current after workouts or plan changes. */
+  private snapshot(routine: boolean, workouts: boolean, combat = this.state.me?.share_combat ? this.state.me?.shared?.combat : undefined): SharedSnapshot {
+    const s = buildSnapshot(this.store.get(), { routine, workouts });
+    return combat ? { ...s, combat } : s;
+  }
+
+  /** Keep shared snapshots current after workouts or plan changes. */
   private schedulePush() {
     const me = this.state.me;
-    if (!me || (!me.share_routine && !me.share_workouts)) return;
+    if (!me) return;
     if (this.pushTimer) clearTimeout(this.pushTimer);
     this.pushTimer = setTimeout(() => {
       this.pushTimer = null;
       const cur = this.state.me;
       if (!cur) return;
-      const shared = buildSnapshot(this.store.get(), { routine: cur.share_routine, workouts: cur.share_workouts });
+      void this.syncProgress();
+      void this.pushCoachShares();
+      if (!cur.share_routine && !cur.share_workouts) return;
+      const shared = this.snapshot(cur.share_routine, cur.share_workouts);
       if (JSON.stringify(shared) === JSON.stringify(cur.shared)) return;
       void this.patchMe({ shared }).catch(() => undefined);
     }, 3000);
+  }
+
+  // ── combat sports ───────────────────────────────────────────────────────
+  async setCombat(info: CombatInfo | null, share: boolean) {
+    const cur = this.state.me;
+    if (!cur) return;
+    const clean = info ? {
+      sport: info.sport,
+      heightCm: info.heightCm && info.heightCm >= 120 && info.heightCm <= 230 ? Math.round(info.heightCm) : undefined,
+      weightKg: info.weightKg && info.weightKg >= 35 && info.weightKg <= 250 ? Math.round(info.weightKg * 10) / 10 : undefined,
+      fightDate: info.fightDate || undefined,
+      fightName: info.fightName?.trim().slice(0, 60) || undefined,
+    } : undefined;
+    await this.patchMe({ share_combat: share, shared: this.snapshot(cur.share_routine, cur.share_workouts, share ? clean : undefined) });
+  }
+
+  // ── coach & clients ─────────────────────────────────────────────────────
+  async setCoachMode(on: boolean) { await this.patchMe({ is_coach: on }); }
+
+  async connectCoach(code: string) {
+    const clean = normalizeCode(code);
+    if (!isCode(clean)) throw new CloudError('Coach codes are 8 letters and numbers, like ABCD-2345.');
+    const r = (await this.cloud.req('/rest/v1/rpc/request_coach', { method: 'POST', body: JSON.stringify({ code: clean }) })) as { ok: boolean; reason?: string; status?: string; name?: string };
+    if (!r?.ok) throw new CloudError(REQUEST_ERRORS[r?.reason ?? ''] ?? 'Couldn’t connect to that coach.');
+    await this.load();
+    return { status: r.status ?? 'pending', name: r.name ?? 'your coach' };
+  }
+
+  async acceptClient(client: string) {
+    await this.cloud.req('/rest/v1/rpc/accept_client', { method: 'POST', body: JSON.stringify({ client }) });
+    await this.load();
+  }
+
+  async endCoachLink(other: string, iAm: 'coach' | 'client') {
+    const me = this.uid();
+    const [client, coach] = iAm === 'coach' ? [other, me] : [me, other];
+    await this.cloud.req(`/rest/v1/coach_links?client_id=eq.${client}&coach_id=eq.${coach}`, { method: 'DELETE' });
+    this.set({ coachLinks: this.state.coachLinks.filter((l) => l.other_id !== other) });
+  }
+
+  async setCoachCheckins(coach: string, on: boolean) {
+    await this.cloud.req('/rest/v1/rpc/set_coach_share', { method: 'POST', body: JSON.stringify({ coach, checkins_on: on, payload: buildCoachShare(this.store.get(), on) }) });
+    this.set({ coachLinks: this.state.coachLinks.map((l) => (l.other_id === coach && l.i_am === 'client' ? { ...l, share_checkins: on } : l)) });
+  }
+
+  private async pushCoachShares() {
+    for (const l of this.state.coachLinks) {
+      if (l.i_am !== 'client' || l.status !== 'accepted') continue;
+      await this.cloud.req('/rest/v1/rpc/set_coach_share', { method: 'POST', body: JSON.stringify({ coach: l.other_id, checkins_on: l.share_checkins, payload: buildCoachShare(this.store.get(), l.share_checkins) }) }).catch(() => undefined);
+    }
+  }
+
+  async addNote(client: string, body: string) {
+    const text = body.trim();
+    if (!text) return;
+    const rows = (await this.cloud.req('/rest/v1/coach_notes', { method: 'POST', headers: { prefer: 'return=representation' }, body: JSON.stringify({ coach_id: this.uid(), client_id: client, body: text.slice(0, 1000) }) })) as CoachNote[];
+    this.set({ notes: [rows[0], ...this.state.notes] });
+  }
+
+  async deleteNote(id: string) {
+    await this.cloud.req(`/rest/v1/coach_notes?id=eq.${id}`, { method: 'DELETE' });
+    this.set({ notes: this.state.notes.filter((n) => n.id !== id) });
+  }
+
+  // ── train together ──────────────────────────────────────────────────────
+  async proposeTraining(friend: string, day: string, time: string, workout: string, note?: string) {
+    if (!workout.trim()) throw new CloudError('Name the workout.');
+    const rows = (await this.cloud.req('/rest/v1/train_invites', { method: 'POST', headers: { prefer: 'return=representation' }, body: JSON.stringify({ from_user: this.uid(), to_user: friend, day, at_time: time || null, workout: workout.trim().slice(0, 80), note: note?.trim().slice(0, 200) || null }) })) as TrainInvite[];
+    this.set({ invites: [...this.state.invites, rows[0]].sort((a, b) => a.day.localeCompare(b.day)) });
+  }
+
+  async respondTraining(id: string, response: 'accepted' | 'declined' | 'cancelled') {
+    const ok = await this.cloud.req('/rest/v1/rpc/respond_train', { method: 'POST', body: JSON.stringify({ invite: id, response }) });
+    if (ok === false) throw new CloudError('That invite has already changed. Pull to refresh.');
+    this.set({ invites: this.state.invites.map((i) => (i.id === id ? { ...i, status: response } : i)) });
+  }
+
+  // ── challenges ──────────────────────────────────────────────────────────
+  async createChallenge(name: string, goal: number, starts: string, ends: string, friendIds: string[]) {
+    if (!name.trim()) throw new CloudError('Give the challenge a name.');
+    if (!(goal >= 1 && goal <= 200)) throw new CloudError('Pick a goal between 1 and 200 workouts.');
+    if (ends < starts) throw new CloudError('The end date is before the start date.');
+    const rows = (await this.cloud.req('/rest/v1/challenges', { method: 'POST', headers: { prefer: 'return=representation' }, body: JSON.stringify({ owner: this.uid(), name: name.trim().slice(0, 60), goal, starts, ends }) })) as Challenge[];
+    const c = rows[0];
+    for (const f of friendIds) await this.cloud.req('/rest/v1/rpc/invite_to_challenge', { method: 'POST', body: JSON.stringify({ challenge: c.id, friend: f }) });
+    await this.load();
+    return c;
+  }
+
+  async joinChallenge(id: string) {
+    await this.cloud.req('/rest/v1/rpc/join_challenge', { method: 'POST', body: JSON.stringify({ challenge: id }) });
+    await this.load();
+  }
+
+  async leaveChallenge(id: string) {
+    const c = this.state.challenges.find((x) => x.id === id);
+    if (c?.owner === this.uid()) await this.cloud.req(`/rest/v1/challenges?id=eq.${id}`, { method: 'DELETE' });
+    else await this.cloud.req(`/rest/v1/challenge_members?challenge_id=eq.${id}&user_id=eq.${this.uid()}`, { method: 'DELETE' });
+    this.set({ challenges: this.state.challenges.filter((x) => x.id !== id), members: this.state.members.filter((m) => m.challenge_id !== id) });
+  }
+
+  /** Each person's app reports their own finished-workout count for each challenge they joined. */
+  private async syncProgress() {
+    const me = this.uid();
+    const data = this.store.get();
+    for (const c of this.state.challenges) {
+      const m = this.state.members.find((x) => x.challenge_id === c.id && x.user_id === me);
+      if (!m || m.status !== 'joined') continue;
+      const n = challengeCount(data, c.starts, c.ends);
+      if (n === m.progress) continue;
+      this.set({ members: this.state.members.map((x) => (x === m ? { ...x, progress: n } : x)) });
+      await this.cloud.req('/rest/v1/rpc/set_challenge_progress', { method: 'POST', body: JSON.stringify({ challenge: c.id, n }) }).catch(() => undefined);
+    }
   }
 
   // ── friends ─────────────────────────────────────────────────────────────

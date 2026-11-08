@@ -74,3 +74,49 @@ test('photo data URL converts to an upload', async () => {
   assert.equal(b.type, 'image/jpeg');
   assert.equal(await b.text(), 'hello');
 });
+
+import { sizeMatches, challengeCount, buildCoachShare } from '../src/lib/social';
+
+const combatFriend = (id: string, sport: string, h: number, w: number, share = true): SocialProfile => ({ user_id: id, display_name: id, share_routine: false, share_workouts: false, share_combat: share, updated_at: '', shared: { combat: { sport, heightCm: h, weightKg: w } } });
+
+test('size matching: same sport, within 8 cm and 10% weight, only if shared', () => {
+  const friends = {
+    close: combatFriend('close', 'Boxing', 178, 82),
+    tall: combatFriend('tall', 'Boxing', 190, 80),
+    heavy: combatFriend('heavy', 'Boxing', 180, 95),
+    otherSport: combatFriend('otherSport', 'Wrestling', 180, 80),
+    hidden: combatFriend('hidden', 'Boxing', 180, 80, false),
+  };
+  assert.deepEqual(sizeMatches({ sport: 'Boxing', heightCm: 180, weightKg: 80 }, friends), ['close']);
+  assert.deepEqual(sizeMatches({ sport: 'Boxing' }, friends), [], 'no size, no matches');
+  assert.deepEqual(sizeMatches(undefined, friends), []);
+});
+
+test('fight dates show in the feed until the day passes', () => {
+  const f = { ...combatFriend('a', 'MMA', 180, 80), display_name: 'Alex' };
+  f.shared.combat!.fightDate = '2026-11-20';
+  f.shared.combat!.fightName = 'Regional open';
+  assert.deepEqual(buildFeed({ a: f }, [], 40, '2026-11-10').map((x) => x.kind), ['fight']);
+  assert.deepEqual(buildFeed({ a: f }, [], 40, '2026-11-21'), []);
+  assert.deepEqual(buildFeed({ a: { ...f, share_combat: false } }, [], 40, '2026-11-10'), []);
+});
+
+test('challenge progress counts finished workouts inside the dates', () => {
+  const d = data();
+  assert.equal(challengeCount(d, '2026-10-01', '2026-10-31'), 2, 's1 and s3; abandoned s2 excluded');
+  assert.equal(challengeCount(d, '2026-10-02', '2026-10-04'), 0);
+});
+
+test('coach share: workouts always, check-in numbers only when on, never notes', () => {
+  const d = data();
+  d.checkins = [
+    { date: '2026-10-05', mood: 2, energy: 3, sleepHours: 6, note: 'PRIVATE note', updatedAt: '' },
+    { date: '2026-09-01', mood: 5, updatedAt: '' },
+  ];
+  const off = buildCoachShare(d, false, '2026-10-06');
+  assert.equal(off.checkins, undefined);
+  assert.deepEqual(off.recent?.map((w) => w.id), ['s3', 's1']);
+  const on = buildCoachShare(d, true, '2026-10-06');
+  assert.deepEqual(on.checkins, [{ date: '2026-10-05', mood: 2, energy: 3, stress: undefined, sleepHours: 6, soreness: undefined }], 'last 2 weeks only');
+  assert.ok(!JSON.stringify(on).includes('PRIVATE'));
+});
