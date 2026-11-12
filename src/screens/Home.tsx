@@ -4,13 +4,13 @@ import { ComingUpCard } from '../components/ComingUp';
 import { upcomingAdvice } from '../lib/upcoming';
 import React, { useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Icon, store, useData, useToast, type Route } from '../components/core';
+import { Icon, store, useCloud, useData, useSocial, useToast, type Route } from '../components/core';
 import { CheckinSheet, SkipSheet, WeekLegend, WeekStrip } from '../components/widgets';
 import { ChatCheckin } from '../components/ChatCheckin';
 import { CountUp, Reveal, Ring, SlidingPicker } from '../components/motion';
 import { activeSession, estimateMinutes, isTrainingDay, nextTemplate, shortVersion } from '../lib/planner';
 import { getExercise } from '../lib/exercises';
-import { addDays, DAY_LONG, toDateKey, weekStart } from '../lib/dates';
+import { addDays, DAY_LONG, plural, toDateKey, weekStart } from '../lib/dates';
 import { completedSessions, daysSinceLastWorkout, planWindow, sessionsOn, setsDone } from '../lib/stats';
 import { computeInsights } from '../lib/insights';
 import { budgetSummary } from '../lib/nutrition';
@@ -48,6 +48,10 @@ export function Home({ go }: { go: (r: Route) => void }) {
   const [sheet, setSheet] = useState<'checkin' | 'skip' | 'chat' | null>(null);
   const [chatMood, setChatMood] = useState<{ label: string; value: number } | undefined>();
   const [promo, setPromo] = useState(() => { try { return localStorage.getItem('px:promo') !== 'hidden'; } catch { return true; } });
+  const cloudState = useCloud();
+  const socialState = useSocial();
+  // People who already work with a coach (or are one) don't need coaching ads.
+  const coached = socialState.coachLinks.some((l) => l.status === 'accepted') || !!socialState.me?.is_coach;
   const p = data.profile!;
   const today = toDateKey(new Date());
   const t = nextTemplate(data);
@@ -98,12 +102,12 @@ export function Home({ go }: { go: (r: Route) => void }) {
       <Reveal i={i++} className="dash-top">
         <div className="row" style={{ gap: 10 }}>
           <span className="px-avatar" aria-hidden>{BRAND.monogram}</span>
-          <div><b>{BRAND.name}</b><div className="small muted">Private on this device</div></div>
+          <div><b>{BRAND.name}</b><div className="small muted" data-testid="home-status">{cloudState.session ? (cloudState.sync === 'error' ? 'Backup paused' : 'Backed up to your account') : 'Private on this device'}</div></div>
         </div>
         <button className="btn btn-outline" onClick={() => go('you')}>{p.name ? p.name : 'Profile'}</button>
       </Reveal>
 
-      {promo && (
+      {promo && !coached && (
         <Reveal i={i++} className="promo" role="note">
           <div>
             <b>Progress that fits real life</b>
@@ -151,14 +155,14 @@ export function Home({ go }: { go: (r: Route) => void }) {
         <Reveal i={i++} as="section" className="card card-ink today stack vt-workout">
           <span className="eyebrow">In progress</span>
           <h2 className="today-name display">{active.name}</h2>
-          <p className="muted">{setsDone(active)} sets logged. Everything is saved, so pick up where you left off.</p>
+          <p className="muted">{plural(setsDone(active), 'set')} logged. Everything is saved, so pick up where you left off.</p>
           <button className="btn btn-primary btn-lg btn-block" onClick={() => withViewTransition(() => flushSync(() => go('workout')))} data-testid="resume">Resume workout</button>
         </Reveal>
       ) : doneToday.length ? (
         <Reveal i={i++} as="section" className="card card-ink today stack">
           <span className="eyebrow">Today’s workout</span>
           <h2 className="today-name display">Done<span className="ember-dot">.</span></h2>
-          <p className="muted">{doneToday[0].name} · {setsDone(doneToday[0])} sets. Recovery is part of the plan too.</p>
+          <p className="muted">{doneToday[0].name} · {plural(setsDone(doneToday[0]), 'set')}. Recovery is part of the plan too.</p>
           {nextPlanned && <p className="small muted">Next up: {t?.name} on {nextPlanned}.</p>}
         </Reveal>
       ) : skippedToday ? (
@@ -270,13 +274,13 @@ export function Home({ go }: { go: (r: Route) => void }) {
         </Reveal>
       )}
 
-      <Reveal i={i++}>
+      {!coached && <Reveal i={i++}>
         <button className="card stack card-press coach-prompt" style={{ textAlign: 'left', cursor: 'pointer', width: '100%' }} onClick={() => go('coach')} data-testid="home-coaching">
           <b style={{ fontSize: 'var(--t-lg)' }}>{data.coach.profile.name ? `Train with ${data.coach.profile.name}` : 'Want a coach in your corner?'}</b>
           <span className="small muted">1–3 sessions a week{data.coach.tiers.length ? `, from $${Math.min(...data.coach.tiers.map((x) => x.pricePerSession))} a session` : ''}. More sessions cost less each.</span>
           <span className="small" style={{ fontWeight: 700 }}>View coaching options →</span>
         </button>
-      </Reveal>
+      </Reveal>}
 
       <p className="small muted">General fitness support only, not medical or mental-health diagnosis or treatment. Adjust movements to how you feel, and talk to a professional about any health concerns.</p>
 

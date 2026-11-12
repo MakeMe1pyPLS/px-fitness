@@ -5,7 +5,7 @@ import { Bars, Empty, LineChart, PairBars } from '../components/widgets';
 import { PhotosMilestones } from '../components/PhotosMilestones';
 import { exerciseBests, exerciseSeries, planWindow, sessionVolume, setsDone, weeklyConsistency, weeklyVolume } from '../lib/stats';
 import { getExercise } from '../lib/exercises';
-import { addDays, formatShortDate, minutesBetween, toDateKey } from '../lib/dates';
+import { addDays, formatShortDate, minutesBetween, toDateKey, plural } from '../lib/dates';
 import type { AppData, Session } from '../lib/types';
 
 export function Progress({ go }: { go: (r: Route) => void }) {
@@ -87,7 +87,7 @@ export function Progress({ go }: { go: (r: Route) => void }) {
         <div className="list">
           {history.slice(0, 40).map((s) => (
             <button key={s.id} className="list-row" onClick={() => setSession(s.id)} data-testid="history-row">
-              <span><b>{s.name}</b><br /><span className="small muted">{formatShortDate(s.plannedFor)} · {setsDone(s)} sets{s.endedAt ? ` · ${minutesBetween(s.startedAt, s.endedAt)} min` : ''}</span></span>
+              <span><b>{s.name}</b><br /><span className="small muted">{formatShortDate(s.plannedFor)} · {plural(setsDone(s), 'set')}{s.endedAt ? ` · ${minutesBetween(s.startedAt, s.endedAt)} min` : ''}</span></span>
               {s.status === 'abandoned' ? <span className="badge">Unfinished</span> : <Icon.arrow size={16} />}
             </button>
           ))}

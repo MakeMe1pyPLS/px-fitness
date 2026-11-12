@@ -87,7 +87,7 @@ export function Reveal({ i = 0, children, className = '', as: Tag = 'div', ...re
  * Trigger: selection. Start: old option's box. Move: snappy spring on x/width.
  * Settle: new option. The indicator is decorative; options are real radios.
  */
-export function SlidingPicker<T extends string>({ options, value, onChange, label, testPrefix }: { options: { id: T; label: string; icon?: React.ReactNode }[]; value: T | undefined; onChange: (v: T) => void; label: string; testPrefix?: string }) {
+export function SlidingPicker<T extends string>({ options, value, onChange, label, testPrefix }: { options: { id: T; label: string; icon?: React.ReactNode; badge?: number }[]; value: T | undefined; onChange: (v: T) => void; label: string; testPrefix?: string }) {
   const wrap = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState<{ x: number; w: number } | null>(null);
   useLayoutEffect(() => {
@@ -103,7 +103,7 @@ export function SlidingPicker<T extends string>({ options, value, onChange, labe
       {box && <span className="picker-ind" aria-hidden style={{ transform: `translateX(${box.x}px)`, width: box.w }} />}
       {options.map((o) => (
         <button key={o.id} type="button" role="radio" aria-checked={value === o.id} data-id={o.id} className="picker-opt" onClick={() => onChange(o.id)} data-testid={testPrefix ? `${testPrefix}-${o.id}` : undefined}>
-          {o.icon}<span>{o.label}</span>
+          {o.icon}<span>{o.label}</span>{o.badge ? <span className="picker-badge" aria-label={`${o.badge} waiting`}>{o.badge}</span> : null}
         </button>
       ))}
     </div>

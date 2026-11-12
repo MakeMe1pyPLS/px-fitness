@@ -3,10 +3,24 @@ import { ConfirmDialog, Icon, Sheet, Switch, social, useCloud, useData, useSocia
 import { AuthSheet } from '../components/Account';
 import { photos as localPhotos } from '../components/PhotosMilestones';
 import { buildFeed, formatCode, normalizeCode, type FeedItem, type SharedPhoto, type SocialProfile } from '../lib/social';
-import { formatShortDate } from '../lib/dates';
+import { formatShortDate, toDateKey } from '../lib/dates';
+import { SlidingPicker } from '../components/motion';
 import type { ProgressPhoto } from '../lib/types';
-import { Challenges, CoachSection, CombatCard, ExtraRequests, SizeMatchBadge, TrainTogether } from './FriendsExtras';
+import { Challenges, ClientRequests, CoachSection, CombatCard, ExtraRequests, SizeMatchBadge, TrainTogether } from './FriendsExtras';
 import { CoachPayments, EventFromLink, EventsSection, usePaymentReturn } from './EventsPayments';
+
+type FTab = 'feed' | 'plans' | 'people' | 'coach';
+const TAB_KEY = 'px:ftab';
+function initialTab(): FTab {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (q.get('coachpay') || q.get('payouts')) return 'coach';
+    if (sessionStorage.getItem('px:event')) return 'plans';
+    const t = sessionStorage.getItem(TAB_KEY);
+    if (t === 'feed' || t === 'plans' || t === 'people' || t === 'coach') return t;
+  } catch { /* ignore */ }
+  return 'feed';
+}
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong. Please try again.');
 const INVITE_KEY = 'px:invite';
@@ -115,6 +129,8 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
   const me = s.me!;
   const myId = me.user_id;
   const [add, setAdd] = useState<string | null>(() => takeInvite());
+  const [tab, setTab] = useState<FTab>(() => initialTab());
+  const pickTab = (t: FTab) => { setTab(t); try { sessionStorage.setItem(TAB_KEY, t); } catch { /* ignore */ } window.scrollTo({ top: 0 }); };
   const [open, setOpen] = useState<SocialProfile | null>(null);
   const [share, setShare] = useState(false);
   const [viewPhoto, setViewPhoto] = useState<SharedPhoto | null>(null);
@@ -125,6 +141,11 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
   const nameOf = (id: string) => s.friends[id]?.display_name ?? s.connections.find((x) => x.user_id === id)?.display_name ?? 'A friend';
   const received = s.cheers.filter((x) => x.to_user === myId).slice(0, 5);
   const myPhotos = s.photos.filter((p) => p.user_id === myId);
+  const today = toDateKey(new Date());
+  const feedBadge = incoming.length
+    + s.invites.filter((i) => i.to_user === myId && i.status === 'pending' && i.day >= today).length
+    + s.members.filter((m) => m.user_id === myId && m.status === 'invited').length;
+  const coachBadge = s.coachLinks.filter((l) => l.i_am === 'coach' && l.status === 'pending').length;
 
   const describeTarget = (t: string) => {
     if (t.startsWith('w:')) return me.shared?.recent?.find((w) => `w:${w.id}` === t)?.name ?? 'a workout';
@@ -141,6 +162,16 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
         <button className="btn btn-primary btn-sm" onClick={() => setAdd('')} data-testid="add-friend"><Icon.plus size={16} /> Add</button>
       </header>
 
+      <SlidingPicker label="Friends sections" testPrefix="ftab" value={tab} onChange={pickTab}
+        options={[
+          { id: 'feed', label: 'Feed', badge: feedBadge },
+          { id: 'plans', label: 'Plans' },
+          { id: 'people', label: 'People' },
+          { id: 'coach', label: 'Coach', badge: coachBadge },
+        ]} />
+
+      {tab === 'feed' && (
+        <div className="stack-lg tab-panel" key="feed">
       {incoming.length > 0 && (
         <section className="card stack" data-testid="requests">
           <h2 className="eyebrow">Friend requests</h2>
@@ -155,11 +186,7 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
         </section>
       )}
 
-      <ExtraRequests />
-      <EventsSection />
-      <TrainTogether />
-      <Challenges />
-
+          <ExtraRequests />
       {friends.length === 0 ? (
         <section className="card card-ink stack" data-testid="invite-card">
           <h2 className="title">Bring a friend</h2>
@@ -181,6 +208,26 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
         </section>
       )}
 
+      {friends.length === 0 && outgoing.length > 0 && (
+        <section className="card stack">
+          <h2 className="eyebrow">Waiting on</h2>
+          {outgoing.map((o) => <div key={o.user_id} className="friend-row"><Avatar name={o.display_name ?? '?'} /><b className="grow">{o.display_name}</b><button className="btn btn-ghost btn-sm" onClick={() => social.remove(o.user_id).catch((e) => toast(errMsg(e)))}>Cancel</button></div>)}
+        </section>
+      )}
+        </div>
+      )}
+
+      {tab === 'plans' && (
+        <div className="stack-lg tab-panel" key="plans">
+          <EventsSection />
+          <TrainTogether />
+          <Challenges />
+          {friends.length === 0 && <p className="card small muted" data-testid="plans-empty">Add a friend to plan sessions together and start group challenges. Free group sessions your coach posts show up here too.</p>}
+        </div>
+      )}
+
+      {tab === 'people' && (
+        <div className="stack-lg tab-panel" key="people">
       {friends.length > 0 && (
         <section className="card stack" data-testid="friend-list">
           <h2 className="eyebrow">Your friends · {friends.length}</h2>
@@ -200,16 +247,6 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
           ))}
         </section>
       )}
-      {friends.length === 0 && outgoing.length > 0 && (
-        <section className="card stack">
-          <h2 className="eyebrow">Waiting on</h2>
-          {outgoing.map((o) => <div key={o.user_id} className="friend-row"><Avatar name={o.display_name ?? '?'} /><b className="grow">{o.display_name}</b><button className="btn btn-ghost btn-sm" onClick={() => social.remove(o.user_id).catch((e) => toast(errMsg(e)))}>Cancel</button></div>)}
-        </section>
-      )}
-
-      <CoachSection />
-      <CoachPayments />
-      <CombatCard />
 
       <section className="card stack" data-testid="my-sharing">
         <h2 className="eyebrow">What you share</h2>
@@ -223,6 +260,18 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
         {friends.length > 0 && <><b className="small">Your friend code</b><CodeBox code={me.friend_code ?? ''} /></>}
         <p className="small muted">Check-ins, mood, sleep, notes and meals are never shared. Removing a friend ends their access right away.</p>
       </section>
+
+          <CombatCard />
+        </div>
+      )}
+
+      {tab === 'coach' && (
+        <div className="stack-lg tab-panel" key="coach">
+          <ClientRequests />
+          <CoachSection />
+          <CoachPayments />
+        </div>
+      )}
 
       {add !== null && <AddFriendSheet initial={add} onClose={() => setAdd(null)} />}
       {open && <FriendSheet friend={open} onClose={() => setOpen(null)} />}

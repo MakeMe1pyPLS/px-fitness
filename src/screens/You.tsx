@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ConfirmDialog, Icon, Sheet, Switch, store, useData, useToast, type Route } from '../components/core';
+import { ConfirmDialog, Icon, Sheet, Switch, store, useCloud, useData, useToast, type Route } from '../components/core';
 import { RULE_LABELS } from '../lib/insights';
 import { estimateMinutes } from '../lib/planner';
 import { getExercise } from '../lib/exercises';
@@ -17,6 +17,7 @@ export function You({ go }: { go: (r: Route) => void }) {
   const data = useData();
   const p = data.profile!;
   const toast = useToast();
+  const cloudSession = useCloud().session;
   const [edit, setEdit] = useState(false);
   const [goals, setGoals] = useState(false);
   const [confirm, setConfirm] = useState<null | 'delete' | 'sample' | 'clearSample' | 'checkins' | 'history'>(null);
@@ -79,8 +80,8 @@ export function You({ go }: { go: (r: Route) => void }) {
       <section className="card stack">
         <h2 className="eyebrow">Coaching</h2>
         <button className="btn btn-outline" onClick={() => go('coach')} data-testid="open-coaching">Coaching options & booking</button>
-        <button className="btn btn-ghost" onClick={() => { store.setCoach({ viewAsCoach: true }); go('biz'); }} data-testid="enter-coach">Switch to coach view</button>
-        <p className="small muted">Coach view holds the business desk. In this prototype anyone on this device can open it; a real launch puts it behind the coach’s own login.</p>
+        <button className="btn btn-ghost" onClick={() => { store.setCoach({ viewAsCoach: true }); go('biz'); }} data-testid="enter-coach">Open the coach’s business desk</button>
+        <p className="small muted">For the coach: private notes on clients, schedule and payment records, kept on this device only. Online clients, in-app payments and PX Saturdays are under Friends → Coach. Anyone using this device can open the desk, so use it on the coach’s own phone.</p>
       </section>
 
       <section className="card stack">
@@ -101,7 +102,7 @@ export function You({ go }: { go: (r: Route) => void }) {
 
       <section className="card stack">
         <h2 className="eyebrow">Your data</h2>
-        <p className="small muted">{store.persistent ? 'Everything is stored only in this browser on this device. There’s no account and nothing is sent anywhere.' : 'This browser is blocking storage, so data lasts only until you close the page.'}</p>
+        <p className="small muted" data-testid="data-where">{!store.persistent ? 'This browser is blocking storage, so data lasts only until you close the page.' : cloudSession ? 'Your data is saved on this device and backed up to your account. Progress photos stay on this device unless you share one with friends. Buttons here change this device; to remove the backup, use “Delete cloud backup” above.' : 'Everything is stored only in this browser on this device. There’s no account and nothing is sent anywhere.'}</p>
         <button className="btn btn-outline" onClick={copyExport}>Copy all my data (JSON)</button>
         <button className="btn btn-outline" onClick={() => setConfirm('checkins')}>Delete all check-ins</button>
         <button className="btn btn-outline" onClick={() => setConfirm('history')}>Reset insight decisions</button>

@@ -24,8 +24,8 @@ export function SkillLevels() {
             <span className="ch-bar" role="progressbar" aria-label={`${l.name} level`} aria-valuemin={0} aria-valuemax={l.levels.length} aria-valuenow={lv}><span style={{ width: `${pct}%` }} /></span>
             {nx ? (
               <div className="row-between small" style={{ gap: 8 }}>
-                <span>Next: <b>{nx.name}</b> <span className="muted">· {nx.test}</span></span>
-                <button className="btn btn-primary btn-sm" onClick={() => setConfirm({ id: l.id, level: nx.number, name: nx.name, test: nx.test })} data-testid={`levelup-${l.id}`}>I did it</button>
+                <span className="muted">Next: <b style={{ color: 'var(--ink)' }}>{nx.name}</b> · {nx.test}</span>
+                <button className="btn btn-outline btn-sm" onClick={() => setConfirm({ id: l.id, level: nx.number, name: nx.name, test: nx.test })} data-testid={`levelup-${l.id}`}>I did it</button>
               </div>
             ) : <p className="small"><b>Top level reached.</b> Keep it sharp.</p>}
             {open === l.id && (

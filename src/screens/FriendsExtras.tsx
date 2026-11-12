@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog, Sheet, Switch, social, useCloud, useData, useSocial, useToast } from '../components/core';
 import { COMBAT_SPORTS, formatCode, normalizeCode, sizeMatches, type Challenge, type CombatInfo, type CoachLink, type TrainInvite } from '../lib/social';
-import { addDays, formatShortDate, toDateKey } from '../lib/dates';
+import { addDays, formatShortDate, plural, toDateKey } from '../lib/dates';
 import { PayCoach } from './EventsPayments';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong. Please try again.');
@@ -22,8 +22,7 @@ export function ExtraRequests() {
   const name = (id: string) => s.people[id] ?? 'A friend';
   const train = s.invites.filter((i) => i.to_user === me && i.status === 'pending' && i.day >= toDateKey(new Date()));
   const chal = s.challenges.filter((c) => s.members.some((m) => m.challenge_id === c.id && m.user_id === me && m.status === 'invited'));
-  const clients = s.coachLinks.filter((l) => l.i_am === 'coach' && l.status === 'pending');
-  if (!train.length && !chal.length && !clients.length) return null;
+  if (!train.length && !chal.length) return null;
   const act = (p: Promise<unknown>, ok: string) => p.then(() => toast(ok)).catch((e) => toast(errMsg(e)));
   return (
     <section className="card stack" data-testid="extra-requests">
@@ -41,6 +40,20 @@ export function ExtraRequests() {
           <div className="row"><button className="btn btn-primary btn-sm" onClick={() => act(social.joinChallenge(c.id), 'You’re in the challenge')} data-testid="challenge-join">Join</button><button className="btn btn-ghost btn-sm" onClick={() => act(social.leaveChallenge(c.id), 'Declined')}>No thanks</button></div>
         </div>
       ))}
+    </section>
+  );
+}
+
+/** Coach tab: people asking to become this coach's clients. */
+export function ClientRequests() {
+  const s = useSocial();
+  const toast = useToast();
+  const clients = s.coachLinks.filter((l) => l.i_am === 'coach' && l.status === 'pending');
+  if (!clients.length) return null;
+  const act = (p: Promise<unknown>, ok: string) => p.then(() => toast(ok)).catch((e) => toast(errMsg(e)));
+  return (
+    <section className="card stack" data-testid="client-requests">
+      <h2 className="eyebrow">New client requests</h2>
       {clients.map((l) => (
         <div key={l.other_id} className="stack" style={{ gap: 6 }} data-testid="client-request">
           <p><b>{l.display_name ?? 'Someone'}</b> wants you as their coach.</p>
@@ -158,7 +171,7 @@ export function Challenges() {
               );
             })}
             {invited > 0 && <p className="small muted">{invited} invited, not joined yet</p>}
-            <button className="link-btn small" style={{ alignSelf: 'flex-start' }} onClick={() => setLeave(c)}>{c.owner === me ? 'End challenge' : 'Leave'}</button>
+            <button className="link-btn link-quiet small" style={{ alignSelf: 'flex-start' }} onClick={() => setLeave(c)}>{c.owner === me ? 'End challenge' : 'Leave'}</button>
           </article>
         );
       })}
@@ -210,6 +223,7 @@ export function CoachSection() {
   const toast = useToast();
   const [connect, setConnect] = useState(false);
   const [open, setOpen] = useState<CoachLink | null>(null);
+  const [drop, setDrop] = useState<CoachLink | null>(null);
   const me = s.me!;
   const coaches = s.coachLinks.filter((l) => l.i_am === 'client');
   const clients = s.coachLinks.filter((l) => l.i_am === 'coach' && l.status === 'accepted');
@@ -238,7 +252,7 @@ export function CoachSection() {
               )}
             </>
           )}
-          <button className="link-btn small" style={{ alignSelf: 'flex-start' }} onClick={() => social.endCoachLink(l.other_id, 'client').then(() => toast('Coach disconnected')).catch((e) => toast(errMsg(e)))}>Disconnect</button>
+          <button className="link-btn link-quiet small" style={{ alignSelf: 'flex-start' }} onClick={() => setDrop(l)} data-testid="disconnect-coach">Disconnect</button>
         </div>
       ))}
 
@@ -251,6 +265,7 @@ export function CoachSection() {
         </div>
       )}
       {connect && <ConnectCoachSheet onClose={() => setConnect(false)} />}
+      {drop && <ConfirmDialog title={`Disconnect from ${drop.display_name ?? 'your coach'}?`} body="They’ll stop seeing your workouts and check-ins. Past payments and notes aren’t affected." confirmLabel="Disconnect" onCancel={() => setDrop(null)} onConfirm={() => { const l = drop; setDrop(null); social.endCoachLink(l.other_id, 'client').then(() => toast('Coach disconnected')).catch((e) => toast(errMsg(e))); }} />}
       {open && <ClientSheet link={s.coachLinks.find((x) => x.other_id === open.other_id && x.i_am === 'coach') ?? open} onClose={() => setOpen(null)} />}
     </section>
   );
@@ -292,7 +307,7 @@ function ClientSheet({ link, onClose }: { link: CoachLink; onClose: () => void }
       <div className="stack-lg" data-testid="client-sheet">
         <section className="stack">
           <h3 className="eyebrow">Recent workouts</h3>
-          {recent.length === 0 ? <p className="small muted">No finished workouts yet.</p> : recent.slice(0, 8).map((w) => <p key={w.id} className="small"><b>{w.name}</b> <span className="muted">· {formatShortDate(w.date)}{w.minutes ? ` · ${w.minutes} min` : ''}{w.short ? ' · short' : ''} · {w.sets} sets</span></p>)}
+          {recent.length === 0 ? <p className="small muted">No finished workouts yet.</p> : recent.slice(0, 8).map((w) => <p key={w.id} className="small"><b>{w.name}</b> <span className="muted">· {formatShortDate(w.date)}{w.minutes ? ` · ${w.minutes} min` : ''}{w.short ? ' · short' : ''} · {plural(w.sets, 'set')}</span></p>)}
         </section>
         {(link.client_shared.skills?.length ?? 0) > 0 && (
           <section className="stack" data-testid="client-skills">
@@ -341,6 +356,14 @@ export function CombatCard() {
   const [f, setF] = useState<CombatInfo>(() => ({ sport: cur?.sport ?? '', heightCm: cur?.heightCm ?? n?.heightCm, weightKg: cur?.weightKg ?? n?.weightKg, fightDate: cur?.fightDate ?? '', fightName: cur?.fightName ?? '' }));
   const [busy, setBusy] = useState(false);
   const matches = useMemo(() => sizeMatches(me.share_combat ? cur : undefined, s.friends), [me.share_combat, cur, s.friends]);
+  const imperial = (data.profile?.unit ?? 'lb') === 'lb';
+  const totalIn = f.heightCm ? Math.round(f.heightCm / 2.54) : null;
+  const [ftIn, setFtIn] = useState(() => ({ ft: totalIn ? String(Math.floor(totalIn / 12)) : '', inch: totalIn ? String(totalIn % 12) : '' }));
+  const setHeightImp = (ft: string, inch: string) => {
+    setFtIn({ ft, inch });
+    const inches = (Number(ft) || 0) * 12 + (Number(inch) || 0);
+    setF({ ...f, heightCm: inches ? inches * 2.54 : undefined });
+  };
   const save = async (share: boolean) => {
     setBusy(true);
     try { await social.setCombat(f.sport ? f : null, share && !!f.sport); toast(share ? 'Shared with friends' : 'Saved, kept private'); } catch (e) { toast(errMsg(e)); }
@@ -353,13 +376,25 @@ export function CombatCard() {
       <div className="field"><label className="label" htmlFor="cb-s">Sport</label><select id="cb-s" className="input" value={f.sport} onChange={(e) => setF({ ...f, sport: e.target.value })} data-testid="cb-sport"><option value="">I don’t do combat sports</option>{COMBAT_SPORTS.map((x) => <option key={x}>{x}</option>)}</select></div>
       {f.sport && (
         <>
-          <div className="row">
-            <div className="field grow"><label className="label" htmlFor="cb-h">Height (cm)</label><input id="cb-h" className="input" type="number" inputMode="numeric" min={120} max={230} value={f.heightCm ?? ''} onChange={(e) => setF({ ...f, heightCm: e.target.value ? Number(e.target.value) : undefined })} data-testid="cb-height" /></div>
-            <div className="field grow"><label className="label" htmlFor="cb-w">Weight (kg)</label><input id="cb-w" className="input" type="number" inputMode="decimal" min={35} max={250} step="0.1" value={f.weightKg ?? ''} onChange={(e) => setF({ ...f, weightKg: e.target.value ? Number(e.target.value) : undefined })} data-testid="cb-weight" /></div>
-          </div>
-          <div className="row">
-            <div className="field grow"><label className="label" htmlFor="cb-d">Next fight (optional)</label><input id="cb-d" className="input" type="date" min={toDateKey(new Date())} value={f.fightDate ?? ''} onChange={(e) => setF({ ...f, fightDate: e.target.value })} data-testid="cb-date" /></div>
-            <div className="field grow"><label className="label" htmlFor="cb-n">Event</label><input id="cb-n" className="input" maxLength={60} placeholder="e.g. Golden Gloves" value={f.fightName ?? ''} onChange={(e) => setF({ ...f, fightName: e.target.value })} data-testid="cb-event" /></div>
+          {imperial ? (
+            <div className="row">
+              <div className="field grow"><label className="label" htmlFor="cb-ft">Height (ft / in)</label>
+                <div className="row" style={{ gap: 6 }}>
+                  <input id="cb-ft" className="input" type="number" inputMode="numeric" min={4} max={7} aria-label="Feet" placeholder="ft" value={ftIn.ft} onChange={(e) => setHeightImp(e.target.value, ftIn.inch)} data-testid="cb-feet" />
+                  <input className="input" type="number" inputMode="numeric" min={0} max={11} aria-label="Inches" placeholder="in" value={ftIn.inch} onChange={(e) => setHeightImp(ftIn.ft, e.target.value)} data-testid="cb-inches" />
+                </div>
+              </div>
+              <div className="field grow"><label className="label" htmlFor="cb-lb">Weight (lb)</label><input id="cb-lb" className="input" type="number" inputMode="decimal" min={80} max={550} value={f.weightKg ? Math.round(f.weightKg * 2.20462) : ''} onChange={(e) => setF({ ...f, weightKg: e.target.value ? Number(e.target.value) / 2.20462 : undefined })} data-testid="cb-pounds" /></div>
+            </div>
+          ) : (
+            <div className="row">
+              <div className="field grow"><label className="label" htmlFor="cb-h">Height (cm)</label><input id="cb-h" className="input" type="number" inputMode="numeric" min={120} max={230} value={f.heightCm ?? ''} onChange={(e) => setF({ ...f, heightCm: e.target.value ? Number(e.target.value) : undefined })} data-testid="cb-height" /></div>
+              <div className="field grow"><label className="label" htmlFor="cb-w">Weight (kg)</label><input id="cb-w" className="input" type="number" inputMode="decimal" min={35} max={250} step="0.1" value={f.weightKg ?? ''} onChange={(e) => setF({ ...f, weightKg: e.target.value ? Number(e.target.value) : undefined })} data-testid="cb-weight" /></div>
+            </div>
+          )}
+          <div className="stack" style={{ gap: 'var(--s-3, 12px)' }}>
+            <div className="field grow"><label className="label" htmlFor="cb-d">Next fight</label><input id="cb-d" className="input" type="date" min={toDateKey(new Date())} value={f.fightDate ?? ''} onChange={(e) => setF({ ...f, fightDate: e.target.value })} data-testid="cb-date" /></div>
+            <div className="field grow"><label className="label" htmlFor="cb-n">Event name</label><input id="cb-n" className="input" maxLength={60} placeholder="Optional" value={f.fightName ?? ''} onChange={(e) => setF({ ...f, fightName: e.target.value })} data-testid="cb-event" /></div>
           </div>
           <div className="row"><button className="btn btn-primary grow" disabled={busy} onClick={() => save(true)} data-testid="cb-share">{me.share_combat ? 'Update' : 'Share with friends'}</button>{me.share_combat && <button className="btn btn-ghost" disabled={busy} onClick={() => save(false)} data-testid="cb-unshare">Stop sharing</button>}</div>
           {me.share_combat && matches.length > 0 && <p className="small" data-testid="size-matches"><b>Close to your size:</b> {matches.map((id) => s.friends[id]?.display_name).join(', ')}</p>}

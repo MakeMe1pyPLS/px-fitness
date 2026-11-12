@@ -262,6 +262,7 @@ await step('share a progress photo, picked one at a time', async () => {
   await alex.getByTestId('photo-input').setInputFiles({ name: 'p.png', mimeType: 'image/png', buffer: png(60, 80) });
   await alex.getByTestId('photo').first().waitFor();
   await alex.goto(origin + '#friends');
+  await alex.getByTestId('ftab-people').click();
   await alex.getByTestId('choose-photos').click();
   await alex.getByTestId('share-photo').first().click();
   await toast(alex, 'Photo shared with friends');
@@ -285,6 +286,7 @@ await step('Bri follows Alex’s invite link; the code is filled in', async () =
   assert.ok(!bri.url().includes('invite='), 'invite removed from URL');
   await bri.getByTestId('send-request').click();
   await toast(bri, 'Request sent to Alex');
+  await bri.getByTestId('ftab-feed').click();
   await bri.getByText('Waiting on').waitFor();
 });
 
@@ -312,15 +314,18 @@ await step('wrong or own codes get plain messages', async () => {
 await step('Alex accepts the request', async () => {
   page = alex;
   await alex.reload();
+  await alex.getByTestId('ftab-feed').click();
   await alex.getByTestId('requests').getByText('Bri').waitFor();
   await alex.getByTestId('accept').click();
   await toast(alex, 'You and Bri are friends');
+  await alex.getByTestId('ftab-people').click();
   await alex.getByTestId('friend-list').getByText('Bri').waitFor();
 });
 
 await step('Bri sees Alex’s workout and photo, and cheers the workout', async () => {
   page = bri;
   await bri.reload();
+  await bri.getByTestId('ftab-feed').click();
   await bri.getByTestId('feed-item').first().waitFor();
   assert.equal(await bri.getByTestId('feed-item').count(), 2);
   await bri.getByText('Finished Push Day').waitFor();
@@ -333,6 +338,7 @@ await step('Bri sees Alex’s workout and photo, and cheers the workout', async 
 
 await step('Alex’s profile shows only what Alex shares', async () => {
   page = bri;
+  await bri.getByTestId('ftab-people').click();
   await bri.getByTestId('friend').first().click();
   const sheet = bri.getByTestId('friend-sheet');
   await sheet.getByText('Push Day').first().waitFor();
@@ -346,14 +352,17 @@ await step('Alex’s profile shows only what Alex shares', async () => {
 await step('Alex sees the cheer, then shares the plan too', async () => {
   page = alex;
   await alex.reload();
+  await alex.getByTestId('ftab-feed').click();
   await alex.getByText('Cheers for you').waitFor();
   await alex.getByText(/Bri\s*cheered Push Day/).waitFor();
+  await alex.getByTestId('ftab-people').click();
   await alex.getByTestId('edit-sharing').click();
   await alex.getByRole('switch', { name: 'Share my plan' }).click();
   await alex.waitForFunction(() => globalThis.__social.get().me?.share_routine === true);
   await alex.keyboard.press('Escape');
   page = bri;
   await bri.reload();
+  await bri.getByTestId('ftab-people').click();
   await bri.getByTestId('friend').first().click();
   await bri.getByTestId('friend-routine').first().waitFor();
   await bri.keyboard.press('Escape');
@@ -363,6 +372,7 @@ await step('Alex sees the cheer, then shares the plan too', async () => {
 await step('train together: Alex invites Bri for today; Bri accepts; it shows on Today', async () => {
   page = alex;
   await alex.goto(origin + '#friends');
+  await alex.getByTestId('ftab-plans').click();
   await alex.getByTestId('plan-session').click();
   await alex.getByTestId('pt-day').fill(await alex.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }));
   await alex.getByTestId('pt-workout').fill('Push Day');
@@ -372,6 +382,7 @@ await step('train together: Alex invites Bri for today; Bri accepts; it shows on
   page = bri;
   await bri.goto(origin + '#friends');
   await bri.reload();
+  await bri.getByTestId('ftab-feed').click();
   await bri.getByTestId('train-invite').getByText(/Alex\s*wants to train together/).waitFor();
   await bri.getByTestId('train-accept').click();
   await toast(bri, 'It’s a plan');
@@ -383,6 +394,7 @@ await step('train together: Alex invites Bri for today; Bri accepts; it shows on
 await step('challenges: Alex starts one, Bri joins, both progress bars show', async () => {
   page = alex;
   await alex.reload();
+  await alex.getByTestId('ftab-plans').click();
   await alex.getByTestId('new-challenge').click();
   await alex.getByTestId('ch-name').fill('12 in November');
   await alex.getByTestId('ch-create').click();
@@ -390,8 +402,10 @@ await step('challenges: Alex starts one, Bri joins, both progress bars show', as
   page = bri;
   await bri.goto(origin + '#friends');
   await bri.reload();
+  await bri.getByTestId('ftab-feed').click();
   await bri.getByTestId('challenge-invite').getByText('12 in November').waitFor();
   await bri.getByTestId('challenge-join').click();
+  await bri.getByTestId('ftab-plans').click();
   await bri.getByTestId('challenge').getByText('12 in November').waitFor();
   await bri.getByTestId('challenge').locator('.ch-row').nth(1).waitFor();
   const rows = await bri.getByTestId('challenge').locator('.ch-row').allTextContents();
@@ -403,17 +417,20 @@ await step('challenges: Alex starts one, Bri joins, both progress bars show', as
 await step('coach: Alex turns on coach mode; Bri connects; check-ins only after Bri allows', async () => {
   page = alex;
   await alex.goto(origin + '#friends');
+  await alex.getByTestId('ftab-coach').click();
   await alex.getByRole('switch', { name: 'Coach mode' }).click();
   await toast(alex, 'Coach mode on');
   page = bri;
   await bri.evaluate(() => { const s = globalThis.__kova; const d = new Date(); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; s.saveCheckin(k, { mood: 2, energy: 2, sleepHours: 5, note: 'PRIVATE bad night' }); });
   await bri.goto(origin + '#friends');
+  await bri.getByTestId('ftab-coach').click();
   await bri.getByTestId('connect-coach').click();
   await bri.getByTestId('coach-code').fill(alexCode);
   await bri.getByTestId('coach-send').click();
   await toast(bri, 'Request sent to Alex');
   page = alex;
   await alex.reload();
+  await alex.getByTestId('ftab-coach').click();
   await alex.getByTestId('client-request').getByText('Bri').waitFor();
   await alex.getByTestId('client-accept').click();
   await toast(alex, 'Bri is now your client');
@@ -432,6 +449,7 @@ await step('coach: Alex turns on coach mode; Bri connects; check-ins only after 
 await step('coach: Alex sees Bri’s check-ins and sends a note Bri can read', async () => {
   page = alex;
   await alex.reload();
+  await alex.getByTestId('ftab-coach').click();
   await alex.getByTestId('client').getByText('Bri').click();
   await alex.getByTestId('client-checkins').waitFor();
   await alex.getByTestId('note-body').fill('Rough sleep. Keep today light and get to bed early.');
@@ -446,23 +464,28 @@ await step('coach: Alex sees Bri’s check-ins and sends a note Bri can read', a
 
 await step('combat: similar-size badge and fight night in the feed', async () => {
   page = alex;
+  await alex.getByTestId('ftab-people').click();
   await alex.getByTestId('cb-sport').selectOption('Boxing');
-  await alex.getByTestId('cb-height').fill('180');
-  await alex.getByTestId('cb-weight').fill('80');
+  await alex.getByTestId('cb-feet').fill('5');
+  await alex.getByTestId('cb-inches').fill('11');
+  await alex.getByTestId('cb-pounds').fill('176');
   const d = await alex.evaluate(() => { const x = new Date(Date.now() + 10 * 86400000); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; });
   await alex.getByTestId('cb-date').fill(d);
   await alex.getByTestId('cb-event').fill('Golden Gloves');
   await alex.getByTestId('cb-share').click();
   await toast(alex, 'Shared with friends');
   page = bri;
+  await bri.getByTestId('ftab-people').click();
   await bri.getByTestId('cb-sport').selectOption('Boxing');
-  await bri.getByTestId('cb-height').fill('177');
-  await bri.getByTestId('cb-weight').fill('83');
+  await bri.getByTestId('cb-feet').fill('5');
+  await bri.getByTestId('cb-inches').fill('10');
+  await bri.getByTestId('cb-pounds').fill('183');
   await bri.getByTestId('cb-share').click();
   await toast(bri, 'Shared with friends');
   await bri.reload();
   await bri.getByTestId('size-matches').getByText('Alex').waitFor();
   await bri.getByTestId('size-badge').waitFor();
+  await bri.getByTestId('ftab-feed').click();
   await bri.getByText('Fight night: Golden Gloves').waitFor();
   await bri.screenshot({ path: 'e2e/shots/collab-feed.png' });
 });
@@ -481,6 +504,7 @@ await step('skill levels: Alex levels up; Bri sees it in the feed', async () => 
   page = bri;
   await bri.goto(origin + '#friends');
   await bri.reload();
+  await bri.getByTestId('ftab-feed').click();
   await bri.getByText('Level up: Wall push-up').waitFor();
 });
 
@@ -502,6 +526,7 @@ await step('coming up: Bri adds a fight tomorrow; Today tapers; coach sees it', 
   page = alex;
   await alex.goto(origin + '#friends');
   await alex.reload();
+  await alex.getByTestId('ftab-coach').click();
   await alex.getByTestId('client').getByText('Bri').click();
   await alex.getByTestId('client-upcoming').getByText('Golden Gloves').waitFor();
   await alex.keyboard.press('Escape');
@@ -520,6 +545,7 @@ await step('payments: Alex connects Stripe and sets a price; Bri pays; both see 
   page = bri;
   await bri.goto(origin + '#friends');
   await bri.reload();
+  await bri.getByTestId('ftab-coach').click();
   await bri.getByTestId('pay-coach').getByText('Single session').waitFor();
   await bri.getByTestId('pay-offer').click();
   await bri.getByTestId('pay-note').fill('Saturday mornings');
@@ -536,6 +562,7 @@ await step('payments: Alex connects Stripe and sets a price; Bri pays; both see 
 let eventId = '';
 await step('PX Saturdays: Alex posts a session; his client signs up', async () => {
   page = alex;
+  await alex.getByTestId('ftab-plans').click();
   await alex.getByTestId('post-event').click();
   await alex.getByTestId('ev-location').fill('Farquhar Park, by the pavilion');
   await alex.getByTestId('ev-capacity').fill('20');
@@ -545,6 +572,7 @@ await step('PX Saturdays: Alex posts a session; his client signs up', async () =
   eventId = db.events[0].id;
   page = bri;
   await bri.reload();
+  await bri.getByTestId('ftab-plans').click();
   await bri.getByTestId('event').first().click();
   await bri.getByTestId('event-rsvp').click();
   await toast(bri, /You’re in/);
@@ -566,14 +594,42 @@ await step('PX Saturdays: a new person from a Facebook link signs up without add
   await p.close();
   page = alex;
   await alex.reload();
+  await alex.getByTestId('ftab-plans').click();
   await alex.getByTestId('event').first().click();
   await alex.getByTestId('attendees').getByText('Bri').waitFor();
   await alex.getByTestId('attendees').getByText('PX member').waitFor();
   await alex.keyboard.press('Escape');
 });
 
+
+if (process.env.CAPTURE) await step('capture full screens (design audit)', async () => {
+  const dir = process.env.CAPTURE;
+  for (const [who, pg] of [['coach', alex], ['client', bri]]) {
+    page = pg;
+    for (const r of ['home', 'progress', 'friends', 'you', 'diet', 'insights']) {
+      await pg.goto(origin + '#' + r);
+      await pg.waitForTimeout(700);
+      // Scroll through so scroll-triggered reveals run, then capture the whole page.
+      for (let y = 0; y < 12000; y += 500) { await pg.evaluate((v) => window.scrollTo(0, v), y); await pg.waitForTimeout(60); }
+      await pg.evaluate(() => window.scrollTo(0, 0));
+      await pg.waitForTimeout(500);
+      await pg.addStyleTag({ content: '.nav{position:static!important}' }).catch(() => undefined);
+      await pg.screenshot({ path: `${dir}/${who}-${r}.png`, fullPage: true });
+    }
+    await pg.goto(origin + '#friends'); await pg.reload();
+    for (const t of ['feed', 'people', 'coach']) {
+      await pg.getByTestId('ftab-' + t).click();
+      await pg.waitForTimeout(500);
+      await pg.addStyleTag({ content: '.nav{position:static!important}' }).catch(() => undefined);
+      await pg.screenshot({ path: `${dir}/${who}-friends-${t}.png`, fullPage: true });
+    }
+    await pg.getByTestId('ftab-feed').click();
+  }
+});
+
 await step('unsharing a photo removes it for friends', async () => {
   page = alex;
+  await alex.getByTestId('ftab-people').click();
   await alex.getByTestId('choose-photos').click();
   await alex.getByTestId('share-photo').first().click();
   await toast(alex, 'Photo is private again');
@@ -582,6 +638,7 @@ await step('unsharing a photo removes it for friends', async () => {
   await alex.keyboard.press('Escape');
   page = bri;
   await bri.reload();
+  await bri.getByTestId('ftab-feed').click();
   await bri.getByTestId('feed-item').first().waitFor();
   assert.equal(await bri.locator('.feed-photo').count(), 0, 'photo gone from the feed');
   assert.equal(await bri.getByText('Finished Push Day').count(), 1, 'workout still there');
@@ -589,15 +646,18 @@ await step('unsharing a photo removes it for friends', async () => {
 
 await step('removing a friend ends access both ways', async () => {
   page = bri;
+  await bri.getByTestId('ftab-people').click();
   await bri.getByTestId('friend').first().click();
   await bri.getByTestId('remove-friend').click();
   await bri.getByRole('button', { name: 'Remove' }).last().click();
   await toast(bri, 'Friend removed');
+  await bri.getByTestId('ftab-feed').click();
   await bri.getByTestId('invite-card').waitFor();
   assert.equal(db.friendships.length, 0);
   assert.equal(db.cheers.length, 0);
   page = alex;
   await alex.reload();
+  await alex.getByTestId('ftab-feed').click();
   await alex.getByTestId('invite-card').waitFor();
 });
 

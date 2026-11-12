@@ -16,7 +16,7 @@ export function ComingUpCard() {
         <h2 style={{ fontSize: 'var(--t-lg)' }}>Coming up</h2>
         <button className="btn btn-outline btn-sm" onClick={() => setAdd(true)} data-testid="add-upcoming">Add</button>
       </div>
-      {advice && <p className="small" data-testid="upcoming-advice"><b>{advice.title}.</b> {advice.body}</p>}
+      {advice && <p className="small" data-testid="upcoming-advice"><b>{advice.title}.</b> {advice.suggestShort || advice.rest ? 'Today’s workout is adjusted for it.' : advice.body}</p>}
       {list.length === 0 ? (
         <p className="small muted">Got a fight, a trip or a busy week ahead? Add it and your plan adjusts: tapering before competitions, short bodyweight sessions while travelling.</p>
       ) : (
