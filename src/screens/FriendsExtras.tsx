@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ConfirmDialog, Sheet, Switch, social, useCloud, useData, useSocial, useToast } from '../components/core';
 import { COMBAT_SPORTS, formatCode, normalizeCode, sizeMatches, type Challenge, type CombatInfo, type CoachLink, type TrainInvite } from '../lib/social';
 import { addDays, formatShortDate, toDateKey } from '../lib/dates';
+import { PayCoach } from './EventsPayments';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong. Please try again.');
 const fmtTime = (t: string | null) => {
@@ -228,6 +229,7 @@ export function CoachSection() {
             <>
               <p className="small muted">Your coach sees your recent workouts.</p>
               <div className="setting-row"><div><b>Share check-ins</b><p className="small muted">Mood, energy, sleep, stress and soreness numbers from the last 2 weeks. Never your notes.</p></div><Switch label="Share check-ins with my coach" checked={l.share_checkins} onChange={(v) => social.setCoachCheckins(l.other_id, v).then(() => toast(v ? 'Check-ins shared with your coach' : 'Check-ins private again')).catch((e) => toast(errMsg(e)))} /></div>
+              <PayCoach coachId={l.other_id} />
               {notesFor(l.other_id).length > 0 && (
                 <div className="stack" style={{ gap: 6 }}>
                   <b className="small">Notes from your coach</b>
@@ -292,6 +294,18 @@ function ClientSheet({ link, onClose }: { link: CoachLink; onClose: () => void }
           <h3 className="eyebrow">Recent workouts</h3>
           {recent.length === 0 ? <p className="small muted">No finished workouts yet.</p> : recent.slice(0, 8).map((w) => <p key={w.id} className="small"><b>{w.name}</b> <span className="muted">· {formatShortDate(w.date)}{w.minutes ? ` · ${w.minutes} min` : ''}{w.short ? ' · short' : ''} · {w.sets} sets</span></p>)}
         </section>
+        {(link.client_shared.skills?.length ?? 0) > 0 && (
+          <section className="stack" data-testid="client-skills">
+            <h3 className="eyebrow">PX Boot Camp levels</h3>
+            {link.client_shared.skills!.map((k) => <p key={k.id} className="small"><b>{k.ladder}</b> <span className="muted">· Level {k.level}/{k.of}: {k.name}</span></p>)}
+          </section>
+        )}
+        {(link.client_shared.upcoming?.length ?? 0) > 0 && (
+          <section className="stack" data-testid="client-upcoming">
+            <h3 className="eyebrow">Coming up</h3>
+            {link.client_shared.upcoming!.map((u, i) => <p key={i} className="small"><b>{u.label || u.kind}</b> <span className="muted">· {formatShortDate(u.date)}{u.endDate ? `–${formatShortDate(u.endDate)}` : ''}</span></p>)}
+          </section>
+        )}
         <section className="stack">
           <h3 className="eyebrow">Check-ins</h3>
           {!link.share_checkins ? <p className="small muted">{link.display_name} keeps check-ins private.</p> : ck.length === 0 ? <p className="small muted">No check-ins in the last 2 weeks.</p> : (

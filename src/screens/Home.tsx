@@ -1,4 +1,7 @@
 import { TrainTodayCard } from './FriendsExtras';
+import { EventTodayCard } from './EventsPayments';
+import { ComingUpCard } from '../components/ComingUp';
+import { upcomingAdvice } from '../lib/upcoming';
 import React, { useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Icon, store, useData, useToast, type Route } from '../components/core';
@@ -72,7 +75,8 @@ export function Home({ go }: { go: (r: Route) => void }) {
   if (checkin?.sleepHours !== undefined && checkin.sleepHours <= 5) { reasons.push(`about ${checkin.sleepHours} h sleep`); preferShort = true; }
   if (checkin?.availableMinutes !== undefined && checkin.availableMinutes < fullMin) { reasons.push(`${checkin.availableMinutes} min free`); preferShort = true; }
   if ((checkin?.soreness ?? 0) >= 4) { reasons.push('very sore'); preferShort = true; }
-  const leadShort = preferShort && (data.settings.suggestShortWhenLow || (checkin?.availableMinutes ?? 999) < fullMin || (checkin?.soreness ?? 0) >= 4);
+  const ahead = upcomingAdvice(data, today);
+  const leadShort = (preferShort && (data.settings.suggestShortWhenLow || (checkin?.availableMinutes ?? 999) < fullMin || (checkin?.soreness ?? 0) >= 4)) || !!ahead?.suggestShort;
 
   // Trigger: Start. Start: the workout card. Move: View Transition morph into the
   // workout header. Settle: workout screen. Reduced motion / unsupported: instant.
@@ -178,7 +182,9 @@ export function Home({ go }: { go: (r: Route) => void }) {
             {t.exercises.map((e, k) => <li key={e.exerciseId} style={{ ['--k' as string]: k }}><span>{getExercise(e.exerciseId, data.customExercises)?.name}</span><span>{e.sets} × {e.target}</span></li>)}
           </ul>
           <div className="why" data-testid="why">
-            {preferShort ? (
+            {ahead && (ahead.suggestShort || ahead.rest) ? (
+              <><strong>{ahead.title}.</strong> {ahead.body}</>
+            ) : preferShort ? (
               <>You checked in with <strong>{reasons.join(', ')}</strong>. The short version (first 3 exercises, ~{shortMin} min) may fit today better. It still counts.</>
             ) : gap !== null && gap >= 7 ? (
               <>It’s been <strong>{gap} days</strong>. Welcome back. Nothing to catch up on; the plan just picks up where you left off.</>
@@ -206,6 +212,8 @@ export function Home({ go }: { go: (r: Route) => void }) {
       ) : null}
 
       <TrainTodayCard />
+      <EventTodayCard />
+      <ComingUpCard />
 
       {p.checkinsEnabled && (
         <Reveal i={i++} as="section" className="card stack" aria-labelledby="ci-h">

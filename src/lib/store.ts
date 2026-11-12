@@ -17,7 +17,7 @@ import type { Insight } from './insights';
 import { planWindow } from './stats';
 
 export const STORAGE_KEY = 'kova:data'; // kept from the Kova prototype so existing data carries over
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const defaultSettings: Settings = { disabledRules: [], reducedMotion: 'system', sampleData: false, suggestShortWhenLow: false };
 
@@ -26,7 +26,7 @@ export function emptyNutrition(): NutritionData {
 }
 
 export function emptyData(): AppData {
-  return { version: SCHEMA_VERSION, profile: null, templates: [], rotationIndex: 0, customExercises: [], sessions: [], skips: [], checkins: [], recommendations: [], settings: { ...defaultSettings }, nutrition: emptyNutrition(), coach: emptyCoach(), milestones: [], checkinMemory: [] };
+  return { version: SCHEMA_VERSION, profile: null, templates: [], rotationIndex: 0, customExercises: [], sessions: [], skips: [], checkins: [], recommendations: [], settings: { ...defaultSettings }, nutrition: emptyNutrition(), coach: emptyCoach(), milestones: [], checkinMemory: [], upcoming: [], skills: {} };
 }
 
 /** Fill fields added after v1 so older profiles keep working. */
@@ -71,6 +71,8 @@ export function migrate(raw: unknown): AppData {
     coach: { ...base.coach, ...(d.coach ?? {}), profile: { ...base.coach.profile, ...(d.coach?.profile ?? {}) }, links: { ...base.coach.links, ...(d.coach?.links ?? {}) }, hours: { ...base.coach.hours, ...(d.coach?.hours ?? {}) } },
     milestones: Array.isArray(d.milestones) ? d.milestones : [],
     checkinMemory: Array.isArray(d.checkinMemory) ? d.checkinMemory : [],
+    upcoming: Array.isArray(d.upcoming) ? d.upcoming : [],
+    skills: d.skills && typeof d.skills === 'object' ? d.skills : {},
     settings: { ...base.settings, ...(d.settings ?? {}) },
     sessions: Array.isArray(d.sessions) ? d.sessions : [],
     skips: Array.isArray(d.skips) ? d.skips : [],
@@ -398,6 +400,22 @@ export class Store {
     if (!t) return;
     this.update((d) => ({ ...d, checkinMemory: [...d.checkinMemory, { date, text: t }].slice(-30) }));
   }
+  addUpcoming(e: { kind: import('./upcoming').UpcomingKind; label: string; date: string; endDate?: string }) {
+    const ev = { id: uid('up'), kind: e.kind, label: e.label.trim().slice(0, 60), date: e.date, ...(e.endDate && e.endDate > e.date ? { endDate: e.endDate } : {}), createdAt: new Date().toISOString() };
+    this.update((d) => ({ ...d, upcoming: [...d.upcoming.filter((x) => (x.endDate ?? x.date) >= addDays(toDateKey(new Date()), -14)), ev].slice(-40) }));
+    return ev;
+  }
+  removeUpcoming(id: string) { this.update((d) => ({ ...d, upcoming: d.upcoming.filter((x) => x.id !== id) })); }
+
+  /** Set a PX Boot Camp level (moving down is allowed for honest corrections). */
+  setSkillLevel(ladderId: string, level: number, date = toDateKey(new Date())) {
+    this.update((d) => {
+      const cur = d.skills[ladderId] ?? { level: 0, history: [] };
+      const lv = Math.max(0, Math.round(level));
+      return { ...d, skills: { ...d.skills, [ladderId]: { level: lv, history: [...cur.history, { level: lv, date }].slice(-50) } } };
+    });
+  }
+
   forgetMemory(index: number) { this.update((d) => ({ ...d, checkinMemory: d.checkinMemory.filter((_, i) => i !== index) })); }
   clearMemory() { this.update((d) => ({ ...d, checkinMemory: [] })); }
 

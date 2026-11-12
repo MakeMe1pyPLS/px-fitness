@@ -8,11 +8,36 @@ import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 
 const html = readFileSync('.e2e-cloud/index.html');
-const server = createServer((_, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end(html); }).listen(0);
+const server = createServer(async (req, res) => {
+  if (req.url.startsWith('/api/')) {
+    let raw = ''; for await (const c of req) raw += c;
+    const body = raw ? JSON.parse(raw) : {};
+    const me = who(req.headers.authorization)?.id;
+    const send = (st, b) => { res.writeHead(st, { 'content-type': 'application/json' }); res.end(JSON.stringify(b)); };
+    if (!me) return send(401, { error: 'Sign in first.', code: 'signed_out' });
+    if (req.url === '/api/connect') {
+      if (!db.profiles.get(me)?.is_coach) return send(403, { error: 'Turn on coach mode first.', code: 'not_coach' });
+      if (body.action === 'status') { const p = db.payouts.get(me); return send(200, { connected: !!p, chargesEnabled: !!p?.charges_enabled }); }
+      db.payouts.set(me, { coach_id: me, stripe_account_id: 'acct_' + me.slice(0, 8), charges_enabled: true }); // onboarding "completed"
+      return send(200, { url: `${origin}?payouts=done#friends` });
+    }
+    if (req.url === '/api/coach-checkout') {
+      const offer = db.offers.find((o) => o.id === body.offerId && o.active);
+      if (!offer) return send(404, { error: 'That option isn’t available anymore.' });
+      if (!db.coach.some((l) => l.client_id === me && l.coach_id === offer.coach_id && l.status === 'accepted')) return send(403, { error: 'Connect with this coach first.' });
+      if (!db.payouts.get(offer.coach_id)?.charges_enabled) return send(409, { error: 'Your coach hasn’t finished setting up payments yet.' });
+      // Simulates Stripe checkout + the connected-account webhook recording the payment.
+      db.payments.unshift({ id: uuid(), coach_id: offer.coach_id, client_id: me, offer_name: offer.name, amount_cents: offer.price_cents, currency: 'usd', status: 'paid', note: body.note || null, created_at: new Date().toISOString() });
+      return send(200, { url: `${origin}?coachpay=success#friends` });
+    }
+    return send(404, {});
+  }
+  res.writeHead(200, { 'content-type': 'text/html' }); res.end(html);
+}).listen(0);
 const origin = `http://127.0.0.1:${server.address().port}/`;
 
 // ── fake Supabase with friends-only rules ─────────────────────────────────
-const db = { users: new Map(), userData: new Map(), profiles: new Map(), friendships: [], photos: [], cheers: [], files: new Map(), coach: [], notes: [], invites: [], challenges: [], members: [] };
+const db = { users: new Map(), userData: new Map(), profiles: new Map(), friendships: [], photos: [], cheers: [], files: new Map(), coach: [], notes: [], invites: [], challenges: [], members: [], payouts: new Map(), offers: [], payments: [], events: [], rsvps: [] };
 let nextId = 1;
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (u) => `h.${b64u({ sub: u.id, email: u.email, exp: Math.floor(Date.now() / 1000) + 3600 })}.s`;
@@ -117,6 +142,31 @@ async function supabase(route) {
   if (p === '/rest/v1/rpc/join_challenge') { const x = db.members.find((y) => y.challenge_id === body.challenge && y.user_id === me && y.status === 'invited'); if (x) x.status = 'joined'; return json(200, !!x); }
   if (p === '/rest/v1/rpc/set_challenge_progress') { const x = db.members.find((y) => y.challenge_id === body.challenge && y.user_id === me && y.status === 'joined'); if (x) x.progress = body.n; return json(200, !!x); }
   if (p === '/rest/v1/rpc/my_challenge_people') return json(200, [...new Set(db.members.filter((x) => db.members.some((y) => y.challenge_id === x.challenge_id && y.user_id === me)).map((x) => x.user_id))].map((u) => ({ user_id: u, display_name: db.profiles.get(u)?.display_name })));
+
+  // ── payments & events ──
+  if (p === '/rest/v1/coach_payouts') { const x = db.payouts.get(me); return json(200, x ? [{ charges_enabled: x.charges_enabled }] : []); }
+  if (p === '/rest/v1/coach_offers') {
+    if (m === 'GET') return json(200, db.offers.filter((o) => o.active && (o.coach_id === me || db.coach.some((l) => l.coach_id === o.coach_id && l.client_id === me && l.status === 'accepted'))));
+    if (m === 'POST') { if (body.coach_id !== me || !db.profiles.get(me)?.is_coach) return json(403, {}); db.offers.push({ id: uuid(), active: true, sessions: 1, minutes: null, ...body }); return json(201); }
+    if (m === 'PATCH') { const id = ids(q, 'id')[0]; const o = db.offers.find((x) => x.id === id && x.coach_id === me); if (o) Object.assign(o, body); return json(204); }
+  }
+  if (p === '/rest/v1/coaching_payments') return json(200, db.payments.filter((x) => [x.coach_id, x.client_id].includes(me)));
+  const view = (e) => ({ ...e, coach_name: db.profiles.get(e.coach_id)?.display_name ?? null, going: db.rsvps.filter((r) => r.event_id === e.id).length, me_going: db.rsvps.some((r) => r.event_id === e.id && r.user_id === me) });
+  if (p === '/rest/v1/coach_events') {
+    if (m === 'POST') { if (body.coach_id !== me || !db.profiles.get(me)?.is_coach) return json(403, {}); db.events.push({ id: uuid(), minutes: 60, cancelled: false, created_at: new Date().toISOString(), ...body }); return json(201); }
+    if (m === 'PATCH') { const id = ids(q, 'id')[0]; const e = db.events.find((x) => x.id === id && x.coach_id === me); if (e) Object.assign(e, body); return json(204); }
+  }
+  if (p === '/rest/v1/rpc/my_events') return json(200, db.events.filter((e) => e.coach_id === me || areFriends(e.coach_id, me) || db.coach.some((l) => l.coach_id === e.coach_id && l.client_id === me && l.status === 'accepted') || db.rsvps.some((r) => r.event_id === e.id && r.user_id === me)).map(view));
+  if (p === '/rest/v1/rpc/get_event') { const e = db.events.find((x) => x.id === body.event); return json(200, e ? view(e) : null); }
+  if (p === '/rest/v1/rpc/rsvp_event') {
+    const e = db.events.find((x) => x.id === body.event);
+    if (!e) return json(200, { ok: false, reason: 'not_found' });
+    if (e.cancelled) return json(200, { ok: false, reason: 'cancelled' });
+    if (!db.rsvps.some((r) => r.event_id === e.id && r.user_id === me)) { if (e.capacity && db.rsvps.filter((r) => r.event_id === e.id).length >= e.capacity) return json(200, { ok: false, reason: 'full' }); db.rsvps.push({ event_id: e.id, user_id: me }); }
+    return json(200, { ok: true });
+  }
+  if (p === '/rest/v1/event_rsvps' && m === 'DELETE') { const id = ids(q, 'event_id')[0]; db.rsvps = db.rsvps.filter((r) => !(r.event_id === id && r.user_id === me)); return json(204); }
+  if (p === '/rest/v1/rpc/event_attendees') { const e = db.events.find((x) => x.id === body.event && x.coach_id === me); return json(200, e ? db.rsvps.filter((r) => r.event_id === e.id).map((r) => ({ user_id: r.user_id, display_name: db.profiles.get(r.user_id)?.display_name ?? 'PX member', created_at: '' })) : []); }
   const store = p.match(/^\/storage\/v1\/object\/(?:authenticated\/)?friend-photos\/(.+)$/);
   if (store) {
     const path = store[1], owner = path.split('/')[0];
@@ -415,6 +465,111 @@ await step('combat: similar-size badge and fight night in the feed', async () =>
   await bri.getByTestId('size-badge').waitFor();
   await bri.getByText('Fight night: Golden Gloves').waitFor();
   await bri.screenshot({ path: 'e2e/shots/collab-feed.png' });
+});
+
+
+await step('skill levels: Alex levels up; Bri sees it in the feed', async () => {
+  page = alex;
+  await alex.goto(origin + '#progress');
+  await alex.getByTestId('skill-levels').waitFor();
+  await alex.getByTestId('levelup-pushup').click();
+  await alex.getByRole('button', { name: 'Yes, level up' }).click();
+  await toast(alex, 'Level up! Wall push-up');
+  await alex.getByTestId('skill-pushup').getByText('Level 1: Wall push-up').waitFor();
+  await alex.screenshot({ path: 'e2e/shots/more-skills.png' });
+  await alex.waitForFunction(() => (globalThis.__social.get().me?.shared?.skills ?? []).some((k) => k.id === 'pushup'), null, { timeout: 8000 });
+  page = bri;
+  await bri.goto(origin + '#friends');
+  await bri.reload();
+  await bri.getByText('Level up: Wall push-up').waitFor();
+});
+
+await step('coming up: Bri adds a fight tomorrow; Today tapers; coach sees it', async () => {
+  page = bri;
+  await bri.goto(origin + '#home');
+  await bri.evaluate(() => globalThis.__kova.updateProfile({ trainingDays: [0, 1, 2, 3, 4, 5, 6] }, false));
+  await bri.getByTestId('add-upcoming').click();
+  await bri.getByTestId('up-label').fill('Golden Gloves');
+  const tmr = await bri.evaluate(() => { const x = new Date(Date.now() + 86400000); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`; });
+  await bri.getByTestId('up-date').fill(tmr);
+  await bri.getByTestId('up-save').click();
+  await bri.getByTestId('upcoming-advice').getByText(/Golden Gloves in 1 day/).waitFor();
+  await bri.getByTestId('why').getByText(/Taper time/).waitFor();
+  assert.ok((await bri.getByTestId('start-short').getAttribute('class')).includes('btn-primary'), 'short version leads');
+  await bri.locator('[data-testid="coming-up"]').scrollIntoViewIfNeeded();
+  await bri.screenshot({ path: 'e2e/shots/more-comingup.png' });
+  await bri.waitForTimeout(3600); // shares refresh after changes
+  page = alex;
+  await alex.goto(origin + '#friends');
+  await alex.reload();
+  await alex.getByTestId('client').getByText('Bri').click();
+  await alex.getByTestId('client-upcoming').getByText('Golden Gloves').waitFor();
+  await alex.keyboard.press('Escape');
+});
+
+await step('payments: Alex connects Stripe and sets a price; Bri pays; both see it', async () => {
+  page = alex;
+  await alex.getByTestId('connect-stripe').click();
+  await toast(alex, /Stripe is connected/);
+  assert.ok(!alex.url().includes('payouts='), 'return flag cleared');
+  await alex.getByTestId('add-offer').click();
+  await alex.getByTestId('of-price').fill('80');
+  await alex.getByTestId('of-save').click();
+  await toast(alex, 'Price added');
+  await alex.getByTestId('my-offer').getByText('$80').waitFor();
+  page = bri;
+  await bri.goto(origin + '#friends');
+  await bri.reload();
+  await bri.getByTestId('pay-coach').getByText('Single session').waitFor();
+  await bri.getByTestId('pay-offer').click();
+  await bri.getByTestId('pay-note').fill('Saturday mornings');
+  await bri.getByTestId('pay-go').click();
+  await toast(bri, /Payment sent/);
+  await bri.getByTestId('pay-coach').getByText(/Paid: Single session \$80/).waitFor({ timeout: 10000 });
+  page = alex;
+  await alex.reload();
+  await alex.getByTestId('payments-received').getByText(/This month:\s*\$80/).waitFor();
+  await alex.locator('[data-testid="coach-payments"]').scrollIntoViewIfNeeded();
+  await alex.screenshot({ path: 'e2e/shots/more-payments.png' });
+});
+
+let eventId = '';
+await step('PX Saturdays: Alex posts a session; his client signs up', async () => {
+  page = alex;
+  await alex.getByTestId('post-event').click();
+  await alex.getByTestId('ev-location').fill('Farquhar Park, by the pavilion');
+  await alex.getByTestId('ev-capacity').fill('20');
+  await alex.getByTestId('ev-post').click();
+  await toast(alex, /Session posted/);
+  await alex.getByTestId('event').getByText('PX Saturday: free calisthenics').waitFor();
+  eventId = db.events[0].id;
+  page = bri;
+  await bri.reload();
+  await bri.getByTestId('event').first().click();
+  await bri.getByTestId('event-rsvp').click();
+  await toast(bri, /You’re in/);
+  await bri.getByText('You’re going. See you there.').waitFor();
+  await bri.screenshot({ path: 'e2e/shots/more-event.png' });
+  await bri.keyboard.press('Escape');
+});
+
+await step('PX Saturdays: a new person from a Facebook link signs up without adding friends', async () => {
+  const p = await person();
+  page = p;
+  await onboardAndSignUp(p, 'newbie@px.test');
+  await p.goto(`${origin}?event=${eventId}#friends`);
+  await p.getByTestId('event-sheet').getByText('Farquhar Park, by the pavilion').waitFor();
+  assert.ok(!p.url().includes('event='), 'link cleaned');
+  await p.getByTestId('event-rsvp').click();
+  await toast(p, /You’re in/);
+  await p.getByTestId('event-count').getByText('2').waitFor();
+  await p.close();
+  page = alex;
+  await alex.reload();
+  await alex.getByTestId('event').first().click();
+  await alex.getByTestId('attendees').getByText('Bri').waitFor();
+  await alex.getByTestId('attendees').getByText('PX member').waitFor();
+  await alex.keyboard.press('Escape');
 });
 
 await step('unsharing a photo removes it for friends', async () => {

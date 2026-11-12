@@ -89,3 +89,29 @@ All free with an account; rules in `supabase/migrations/0003_collab.sql`.
 
 Tested: 35 more database security checks (78 total), 4 more unit tests, 5 more two-person
 browser steps (19 total). Not yet run against the real Supabase project.
+
+# Coaching payments, PX Saturdays, skill levels, "coming up"
+
+Rules in `supabase/migrations/0004_payments_events.sql`.
+
+- **Coaching payments (Stripe Connect, direct charges):** the coach taps "Connect Stripe" and
+  finishes Stripe's own sign-up (ID, bank). Clients connected to that coach see the coach's prices
+  and pay through Stripe Checkout on the coach's account. Money lands with the coach, Stripe's fee
+  comes from the coach's side, and PX-Fitness takes nothing. Only the server records payments.
+  Setup: in Stripe → Connect, enable Connect; add a second webhook destination at the same URL
+  (`/api/stripe-webhook`) for **connected accounts** with `checkout.session.completed`,
+  `checkout.session.async_payment_succeeded` and `account.updated`, and put its signing secret in
+  `STRIPE_CONNECT_WEBHOOK_SECRET`.
+- **PX Saturdays:** coaches post free sessions (time, place, spots). Friends and clients see them
+  in Friends; anyone with the share link can sign up, even without adding friends. Capacity is
+  enforced in the database. The coach sees who's coming.
+- **PX Boot Camp levels:** 5 calisthenics ladders (push-up, pull-up, handstand, pistol squat,
+  L-sit), each level with a clear test. Default levels: **the coach should review them before
+  launch**. Level-ups show to friends if workouts are shared, and always to a linked coach.
+- **Coming up:** fights/competitions, travel and busy stretches, added on Today, in the check-in
+  ("anything coming up this week?") or picked up by the AI coach. Today tapers 1–2 days before a
+  competition, rests on the day, and suggests short bodyweight sessions while travelling.
+  Shared with a coach only if check-ins are shared.
+
+Tested: 110 database security checks, 95 unit tests, 24/24 two-person browser steps (twice),
+all earlier suites. Not yet run against real Supabase or Stripe.

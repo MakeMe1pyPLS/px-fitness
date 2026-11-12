@@ -146,6 +146,8 @@ export interface AppData {
   coach: CoachData;
   milestones: Milestone[];
   checkinMemory: { date: string; text: string }[]; // short things the user told the check-in bot
+  upcoming: import('./upcoming').UpcomingEvent[]; // fights, travel, busy stretches the plan flexes around
+  skills: Record<string, { level: number; history: { level: number; date: string }[] }>; // PX Boot Camp levels
 }
 
 // ── Coaching (PX business side) ─────────────────────────────────────────────

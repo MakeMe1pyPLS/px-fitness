@@ -133,6 +133,47 @@ expect_err "challenge: can't add yourself" "$(as $C "insert into challenge_membe
 expect "challenge: names visible to members" "Alex,Bri" "$(as $B "select string_agg(display_name, ',' order by display_name) from my_challenge_people()")"
 expect "unfriend cancels open training" "cancelled" "$(as $B "delete from friendships" >/dev/null; q -c "select status from train_invites where id='$INV'")"
 
+# ── coaching payments (D is a coach; B is D's client; C is a stranger) ─────
+expect_err "payments: coach can't mark themselves payable" "$(as $D "insert into coach_payouts (coach_id, stripe_account_id, charges_enabled) values ('$D','acct_fake',true)")"
+q -c "insert into coach_payouts (coach_id, stripe_account_id, charges_enabled) values ('$D','acct_D',true)" >/dev/null
+expect "payments: coach sees own payout status" "t" "$(as $D "select charges_enabled from coach_payouts")"
+expect "payments: others can't see payout accounts" "0" "$(as $B "select count(*) from coach_payouts")"
+expect_err "payments: coach can't flip their own status" "$(as $D "update coach_payouts set charges_enabled=false returning 1" ; as $D "select case when charges_enabled then 'error: unchanged' else 'changed' end from coach_payouts")"
+as $D "insert into coach_offers (coach_id, name, price_cents) values ('$D','Single session',8000)" >/dev/null
+expect_err "offers: non-coaches can't post prices" "$(as $C "insert into coach_offers (coach_id, name, price_cents) values ('$C','x',8000)")"
+expect_err "offers: can't post for another coach" "$(as $B "insert into coach_offers (coach_id, name, price_cents) values ('$D','x',100)")"
+expect_err "offers: price must be at least \$5" "$(as $D "insert into coach_offers (coach_id, name, price_cents) values ('$D','cheap',100)")"
+expect "offers: linked client sees prices" "1" "$(as $B "select count(*) from coach_offers")"
+expect "offers: stranger doesn't" "0" "$(as $C "select count(*) from coach_offers")"
+expect "offers: client can't change the price" "0" "$(as $B "with u as (update coach_offers set price_cents=500 returning 1) select count(*) from u")"
+expect_err "payments: client can't record a fake payment" "$(as $B "insert into coaching_payments (coach_id, client_id, offer_name, amount_cents, stripe_session_id) values ('$D','$B','x',8000,'cs_fake')")"
+q -c "insert into coaching_payments (coach_id, client_id, offer_name, amount_cents, stripe_session_id) values ('$D','$B','Single session',8000,'cs_1')" >/dev/null
+expect "payments: coach sees it" "8000" "$(as $D "select amount_cents from coaching_payments")"
+expect "payments: client sees it" "1" "$(as $B "select count(*) from coaching_payments")"
+expect "payments: stranger doesn't" "0" "$(as $C "select count(*) from coaching_payments")"
+expect "payments: nobody can mark it refunded" "0" "$(as $D "with u as (update coaching_payments set status='refunded' returning 1) select count(*) from u")"
+expect_err "payments: duplicate Stripe session is ignored" "$(q -c "insert into coaching_payments (coach_id, client_id, offer_name, amount_cents, stripe_session_id) values ('$D','$B','dup',1,'cs_1')" 2>&1)"
+
+# ── PX Saturdays ───────────────────────────────────────────────────────────
+expect_err "events: non-coaches can't post" "$(as $C "insert into coach_events (coach_id, title, starts_at, location) values ('$C','x', now() + interval '2 days', 'park')")"
+EV=$(as $D "insert into coach_events (coach_id, title, starts_at, location, capacity) values ('$D','PX Saturday', now() + interval '3 days', 'Farquhar Park', 2) returning id")
+expect "events: anyone with the link can view" "PX Saturday" "$(as $C "select get_event('$EV')->>'title'")"
+expect "events: stranger doesn't get it in their list" "0" "$(as $C "select count(*) from my_events()")"
+expect "events: linked client sees it in their list" "1" "$(as $B "select count(*) from my_events()")"
+expect_err "events: can't RSVP directly (capacity bypass)" "$(as $C "insert into event_rsvps (event_id, user_id) values ('$EV','$C')")"
+expect "events: RSVP by link" "true" "$(as $C "select rsvp_event('$EV')->>'ok'")"
+expect "events: RSVP twice is fine" "true" "$(as $C "select rsvp_event('$EV')->>'ok'")"
+expect "events: second person" "true" "$(as $B "select rsvp_event('$EV')->>'ok'")"
+expect "events: capacity enforced" "full" "$(as $A "select rsvp_event('$EV')->>'reason'")"
+expect "events: coach sees who's coming" "2" "$(as $D "select count(*) from event_attendees('$EV')")"
+expect "events: attendees can't see the list" "0" "$(as $C "select count(*) from event_attendees('$EV')")"
+expect "events: others can't edit the event" "0" "$(as $C "with u as (update coach_events set title='hacked' returning 1) select count(*) from u")"
+expect "events: you can only cancel your own RSVP" "0" "$(as $C "with d as (delete from event_rsvps where user_id='$B' returning 1) select count(*) from d")"
+expect "events: cancel own RSVP frees a spot" "true" "$(as $C "delete from event_rsvps where event_id='$EV'" >/dev/null; as $A "select rsvp_event('$EV')->>'ok'")"
+as $D "update coach_events set cancelled = true where id = '$EV'" >/dev/null
+expect "events: cancelled sessions take no sign-ups" "cancelled" "$(as $C "select rsvp_event('$EV')->>'reason'")"
+expect_err "anon: can't view events" "$(as anon "select get_event('$EV')")"
+
 dropdb $DB
 echo; echo "$pass passed, $fail failed"
 [ $fail -eq 0 ]

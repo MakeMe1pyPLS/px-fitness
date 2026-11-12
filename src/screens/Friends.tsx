@@ -6,6 +6,7 @@ import { buildFeed, formatCode, normalizeCode, type FeedItem, type SharedPhoto, 
 import { formatShortDate } from '../lib/dates';
 import type { ProgressPhoto } from '../lib/types';
 import { Challenges, CoachSection, CombatCard, ExtraRequests, SizeMatchBadge, TrainTogether } from './FriendsExtras';
+import { CoachPayments, EventFromLink, EventsSection, usePaymentReturn } from './EventsPayments';
 
 const errMsg = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong. Please try again.');
 const INVITE_KEY = 'px:invite';
@@ -66,8 +67,7 @@ export function Friends({ go }: { go: (r: Route) => void }) {
     <div className="page"><header className="page-head"><h1 className="page-title display">Friends</h1></header>
       <section className="card stack"><p>{s.error}</p><button className="btn btn-outline" onClick={() => social.load()}>Try again</button></section></div>
   );
-  if (!s.me) return <FriendsSetup />;
-  return <FriendsHome go={go} />;
+  return <>{s.me ? <FriendsHome go={go} /> : <FriendsSetup />}<EventFromLink /></>;
 }
 
 // ── first-time setup ────────────────────────────────────────────────────────
@@ -110,6 +110,7 @@ function FriendsSetup() {
 // ── main ────────────────────────────────────────────────────────────────────
 function FriendsHome({ go }: { go: (r: Route) => void }) {
   const s = useSocial();
+  usePaymentReturn();
   const toast = useToast();
   const me = s.me!;
   const myId = me.user_id;
@@ -129,6 +130,7 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
     if (t.startsWith('w:')) return me.shared?.recent?.find((w) => `w:${w.id}` === t)?.name ?? 'a workout';
     if (t.startsWith('p:')) return 'your photo';
     if (t.startsWith('f:')) return 'your upcoming fight';
+    if (t.startsWith('l:')) { const k = me.shared?.skills?.find((x) => t === `l:${x.id}:${x.level}`); return k ? `your level-up: ${k.name}` : 'your level-up'; }
     return 'your progress';
   };
 
@@ -154,6 +156,7 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
       )}
 
       <ExtraRequests />
+      <EventsSection />
       <TrainTogether />
       <Challenges />
 
@@ -205,6 +208,7 @@ function FriendsHome({ go }: { go: (r: Route) => void }) {
       )}
 
       <CoachSection />
+      <CoachPayments />
       <CombatCard />
 
       <section className="card stack" data-testid="my-sharing">
@@ -246,7 +250,12 @@ function FeedCard({ it, onPhoto, onOpen }: { it: FeedItem; onPhoto: (p: SharedPh
         <Avatar name={it.name} size={34} />
         <span className="grow" style={{ textAlign: 'left' }}><b>{it.name}</b> <span className="small muted">· {formatShortDate(it.date)}</span></span>
       </button>
-      {it.kind === 'fight' ? (
+      {it.kind === 'level' ? (
+        <div className="stack" style={{ gap: 4 }}>
+          <p><b>Level up: {it.skill.name}</b></p>
+          <p className="small muted">{it.skill.ladder} · Level {it.skill.level} of {it.skill.of}</p>
+        </div>
+      ) : it.kind === 'fight' ? (
         <div className="stack" style={{ gap: 4 }}>
           <p><b>Fight night{it.combat.fightName ? `: ${it.combat.fightName}` : ''}</b></p>
           <p className="small muted">{it.combat.sport} · {formatShortDate(it.date)}. Send some support.</p>
@@ -262,7 +271,7 @@ function FeedCard({ it, onPhoto, onOpen }: { it: FeedItem; onPhoto: (p: SharedPh
           {it.photo.caption && <span className="small">{it.photo.caption}</span>}
         </button>
       )}
-      <div><CheerButton to={it.user} target={it.key} label={it.kind === 'workout' ? `${it.name}’s ${it.workout.name}` : it.kind === 'fight' ? `${it.name}’s fight` : `${it.name}’s photo`} /></div>
+      <div><CheerButton to={it.user} target={it.key} label={it.kind === 'workout' ? `${it.name}’s ${it.workout.name}` : it.kind === 'fight' ? `${it.name}’s fight` : it.kind === 'level' ? `${it.name}’s level-up` : `${it.name}’s photo`} /></div>
     </article>
   );
 }
@@ -335,6 +344,12 @@ function FriendSheet({ friend, onClose }: { friend: SocialProfile; onClose: () =
             <div key={w.id} className="row-between small"><span><b>{w.name}</b> <span className="muted">· {formatShortDate(w.date)}{w.minutes ? ` · ${w.minutes} min` : ''}</span></span><CheerButton to={friend.user_id} target={`w:${w.id}`} label={w.name} /></div>
           ))}
         </section>
+        {friend.share_workouts && (friend.shared?.skills?.length ?? 0) > 0 && (
+          <section className="stack" data-testid="friend-skills">
+            <h3 className="eyebrow">PX Boot Camp levels</h3>
+            {friend.shared!.skills!.map((k) => <p key={k.id} className="small"><b>{k.ladder}</b> <span className="muted">· Level {k.level}/{k.of}: {k.name}</span></p>)}
+          </section>
+        )}
         <section className="stack">
           <h3 className="eyebrow">Their plan</h3>
           {!friend.share_routine ? <p className="small muted">{friend.display_name} isn’t sharing their plan.</p> : routine.map((t) => (

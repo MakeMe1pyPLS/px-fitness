@@ -249,7 +249,7 @@ export class Cloud {
     return false;
   }
 
-  private async callApi(path: string, payload: unknown = {}) {
+  async callApi(path: string, payload: unknown = {}) {
     const s = await this.validSession();
     if (!s) throw new CloudError('Sign in first.', 401);
     let res: Response;
@@ -270,7 +270,7 @@ export class Cloud {
   }
 
   async aiCheckin(messages: { role: 'user' | 'assistant'; content: string }[], context: Record<string, string>) {
-    return this.callApi('/api/checkin', { messages, context }) as Promise<{ reply: string; checkin: Record<string, number | string> | null; done: boolean }>;
+    return this.callApi('/api/checkin', { messages, context }) as Promise<{ reply: string; checkin: Record<string, unknown> | null; done: boolean }>;
   }
 
   // ── sync ────────────────────────────────────────────────────────────────

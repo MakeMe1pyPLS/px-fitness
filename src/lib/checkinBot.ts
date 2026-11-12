@@ -17,7 +17,7 @@ export type Safety = 'crisis' | 'pain' | 'ed' | null;
 
 export interface Chip { label: string; patch: Patch; skip?: boolean }
 export interface Question { id: StepId; text: string; chips: Chip[]; hint?: string }
-export type StepId = 'mood' | 'energy' | 'sleep' | 'time' | 'body' | 'note';
+export type StepId = 'mood' | 'energy' | 'sleep' | 'time' | 'body' | 'ahead' | 'note';
 
 // ── Safety (always on-device, always first) ────────────────────────────────
 const CRISIS = /\b(suicid\w*|kill (my ?self|me)|end (it all|my life)|want to die|don'?t want to (live|be here)|self[- ]?harm|hurt(ing)? myself|cut(ting)? myself)\b/i;
@@ -80,16 +80,18 @@ export const QUESTIONS: Record<StepId, Question> = {
   sleep: { id: 'sleep', text: 'How much did you sleep last night?', chips: [{ label: '5 h or less', patch: { sleepHours: 5 } }, { label: '6 h', patch: { sleepHours: 6 } }, { label: '7 h', patch: { sleepHours: 7 } }, { label: '8 h', patch: { sleepHours: 8 } }, { label: '9 h+', patch: { sleepHours: 9 } }] },
   time: { id: 'time', text: 'How much time do you have for training today?', chips: [{ label: '10 min', patch: { availableMinutes: 10 } }, { label: '20 min', patch: { availableMinutes: 20 } }, { label: '30 min', patch: { availableMinutes: 30 } }, { label: '45 min', patch: { availableMinutes: 45 } }, { label: 'An hour+', patch: { availableMinutes: 60 } }] },
   body: { id: 'body', text: 'Anything going on with your body or your day?', chips: [{ label: 'All good', patch: { soreness: 1 } }, { label: 'A bit sore', patch: { soreness: 3 } }, { label: 'Very sore', patch: { soreness: 4 } }, { label: 'Stressed', patch: { stress: 4 } }] },
+  ahead: { id: 'ahead', text: 'Anything coming up this week that could affect training? A fight, travel, a busy stretch?', hint: 'Tell me what and when, like “fight on Saturday”, or tap one.', chips: [{ label: 'Nothing coming up', patch: {}, skip: true }, { label: 'Fight or competition', patch: {} }, { label: 'Travel', patch: {} }, { label: 'Busy week', patch: {} }] },
   note: { id: 'note', text: 'Anything else you want me to remember?', hint: 'Optional. A word or two is plenty.', chips: [{ label: 'No, that’s it', patch: {}, skip: true }] },
 };
 
-const ORDER: StepId[] = ['mood', 'energy', 'sleep', 'time', 'body', 'note'];
+const ORDER: StepId[] = ['mood', 'energy', 'sleep', 'time', 'body', 'ahead', 'note'];
 const FIELD: Partial<Record<StepId, keyof Patch>> = { mood: 'mood', energy: 'energy', sleep: 'sleepHours', time: 'availableMinutes' };
 
 /** Next unanswered question; free text can answer several at once. */
-export function nextStep(answers: Patch, asked: StepId[]): StepId | null {
+export function nextStep(answers: Patch, asked: StepId[], skipAhead = false): StepId | null {
   for (const s of ORDER) {
     if (asked.includes(s)) continue;
+    if (s === 'ahead' && skipAhead) continue;
     const f = FIELD[s];
     if (f && answers[f] !== undefined) continue;
     if (s === 'body' && (answers.soreness !== undefined || answers.stress !== undefined)) continue;

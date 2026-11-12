@@ -1,3 +1,4 @@
+import { SkillLevels } from '../components/SkillLevels';
 import React, { useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, store, useData, useToast, type Route } from '../components/core';
 import { Bars, Empty, LineChart, PairBars } from '../components/widgets';
@@ -22,6 +23,7 @@ export function Progress({ go }: { go: (r: Route) => void }) {
       <div className="page">
         <header className="page-head"><h1 className="page-title display">Progress</h1></header>
         <Empty title="Your first session sets the baseline" body="Once you log a workout, this page shows consistency, strength trends and personal bests, all from what you actually did." action={<button className="btn btn-primary" onClick={() => go('home')}>Go to today</button>} />
+        <SkillLevels />
         <PhotosMilestones />
       </div>
     );
@@ -49,6 +51,7 @@ export function Progress({ go }: { go: (r: Route) => void }) {
         <div className="metric"><b>{inRange.reduce((n, s) => n + setsDone(s), 0)}</b><span>sets</span></div>
       </div>
 
+      <SkillLevels />
       <PhotosMilestones />
 
       <section className="card stack" aria-labelledby="c-h">

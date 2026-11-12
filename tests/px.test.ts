@@ -34,8 +34,8 @@ test('free text fills several fields at once', () => {
 test('bot skips questions already answered by free text', () => {
   const a = parseFreeText('slept 7 hours, energy is low');
   assert.equal(nextStep({ mood: 3, ...a }, ['mood']), 'time');
-  assert.equal(nextStep({ mood: 3, energy: 3, sleepHours: 7, availableMinutes: 30, soreness: 1 }, ['mood', 'energy', 'sleep', 'time']), 'note');
-  assert.equal(nextStep({}, ['mood', 'energy', 'sleep', 'time', 'body', 'note']), null);
+  assert.equal(nextStep({ mood: 3, energy: 3, sleepHours: 7, availableMinutes: 30, soreness: 1 }, ['mood', 'energy', 'sleep', 'time']), 'ahead', 'soreness answered body; next is what’s coming up');
+  assert.equal(nextStep({}, ['mood', 'energy', 'sleep', 'time', 'body', 'ahead', 'note']), null);
   assert.equal(QUESTIONS.mood.chips.map((c) => c.label).join(), 'Low,Okay,Good,Great', 'PX mood options kept');
 });
 

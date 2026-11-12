@@ -692,3 +692,16 @@ label.btn { cursor: pointer; }
 .mini-table { width: 100%; border-collapse: collapse; font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
 .mini-table th, .mini-table td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
 .mini-table th { color: var(--ink-3); font-weight: 600; }
+.plain-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.skill { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); }
+.skill:first-of-type { border-top: 0; padding-top: 0; }
+.skill-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; min-height: 44px; padding: 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.skill-head:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+.skill-steps { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+.skill-steps li.done b { color: var(--ember-deep); }
+.event-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 0; background: none; border: 0; border-top: 1px solid var(--line); color: inherit; font: inherit; cursor: pointer; }
+.event-row:first-of-type { border-top: 0; }
+.event-row:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 8px; }
+.going { color: var(--ember-deep); }
+.going-banner { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--ember-soft); border: 1px solid var(--ember); font-weight: 700; }
+.skill .row-between > .btn, .row-between > .btn-sm, .friend-row > .btn-sm { flex: none; white-space: nowrap; }

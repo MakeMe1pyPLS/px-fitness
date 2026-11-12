@@ -1,9 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, Portal, cloud, store, useCloud, useData, type Route } from './core';
 import { CloudError, isActive } from '../lib/cloud';
 import { nextTemplate, isTrainingDay } from '../lib/planner';
+import { activeUpcoming, parseUpcoming, KIND_LABEL, type UpcomingKind } from '../lib/upcoming';
+import { addDays } from '../lib/dates';
 import { QUESTIONS, SAFETY_REPLY, detectSafety, greeting, nextStep, parseFreeText, recall, summarize, type Patch, type StepId } from '../lib/checkinBot';
-import { toDateKey } from '../lib/dates';
+import { formatShortDate, toDateKey } from '../lib/dates';
 
 interface Msg { from: 'bot' | 'me'; text: string; tone?: 'safety'; local?: boolean }
 
@@ -58,11 +60,16 @@ function AiChat({ onClose, go, initialMood, onFallback }: Props & { onFallback: 
     if (!convo.length) return;
     setBusy(true);
     try {
-      const r = await cloud.aiCheckin(convo, { name: data.profile?.name ?? '', recall: recall(data) ?? '', todaySession: today(), opener });
+      const r = await cloud.aiCheckin(convo, { name: data.profile?.name ?? '', recall: recall(data) ?? '', todaySession: today(), opener, today: date, upcoming: activeUpcoming(data, date).slice(0, 4).map((e) => `${e.label || KIND_LABEL[e.kind]} ${e.date}`).join('; ') });
       const patch: Patch = {};
       if (r.checkin) for (const k of AI_FIELDS) if (typeof r.checkin[k] === 'number') (patch as Record<string, number>)[k] = r.checkin[k] as number;
       if (Object.keys(patch).length) { store.saveCheckin(date, patch); setAnswers((a) => ({ ...a, ...patch })); }
       if (typeof r.checkin?.remember === 'string' && r.checkin.remember.trim()) store.remember(date, r.checkin.remember.trim().slice(0, 200));
+      const ups = Array.isArray((r.checkin as Record<string, unknown> | null)?.upcoming) ? ((r.checkin as Record<string, unknown>).upcoming as { kind?: string; label?: string; date?: string; endDate?: string }[]) : [];
+      for (const u of ups.slice(0, 3)) {
+        const kind = (['competition', 'travel', 'busy', 'other'] as const).find((k) => k === u.kind);
+        if (kind && /^\d{4}-\d{2}-\d{2}$/.test(u.date ?? '') && (u.date as string) >= date && (u.date as string) <= addDays(date, 120)) store.addUpcoming({ kind, label: String(u.label ?? '').slice(0, 60), date: u.date as string, endDate: /^\d{4}-\d{2}-\d{2}$/.test(u.endDate ?? '') ? u.endDate : undefined });
+      }
       setMsgs((m) => [...m, { from: 'bot', text: r.reply || (r.done ? 'Saved. Have a good one.' : 'Got it.') }]);
       if (r.done) setDone(true);
     } catch (e) {
@@ -168,10 +175,13 @@ function ScriptedChat({ onClose, go, initialMood, notice }: Props & { notice?: s
     return () => { document.body.style.overflow = o; window.removeEventListener('keydown', k); };
   }, [onClose]);
 
+  const [aheadKind, setAheadKind] = useState<UpcomingKind | null>(null);
+  const skipAhead = useMemo(() => activeUpcoming(data, date).some((e) => e.date <= addDays(date, 7)), []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const advance = (nextAnswers: Patch, nextAsked: StepId[], said: Msg[]) => {
     // Save as we go, so leaving halfway still keeps what was answered.
     if (Object.keys(nextAnswers).length) store.saveCheckin(date, nextAnswers);
-    const n = nextStep(nextAnswers, nextAsked);
+    const n = nextStep(nextAnswers, nextAsked, skipAhead);
     if (n) {
       setStep(n);
       setMsgs((m) => [...m, ...said, { from: 'bot', text: QUESTIONS[n].text }]);
@@ -183,8 +193,28 @@ function ScriptedChat({ onClose, go, initialMood, notice }: Props & { notice?: s
     }
   };
 
+  const saveAhead = (kind: UpcomingKind, label: string, when: string, said: Msg[]) => {
+    store.addUpcoming({ kind, label, date: when });
+    const asked2 = [...asked, 'ahead' as StepId];
+    setAsked(asked2);
+    setAheadKind(null);
+    advance(answers, asked2, [...said, { from: 'bot', text: `Noted: ${label || KIND_LABEL[kind].toLowerCase()} on ${formatShortDate(when)}. I’ll plan around it.` }]);
+  };
+
+  const pickWhen = (label: string, when: string) => {
+    if (!aheadKind) return;
+    saveAhead(aheadKind, aheadKind === 'busy' ? 'Busy week' : '', when, [{ from: 'me', text: label }]);
+  };
+
   const pick = (label: string, patch: Patch, skip?: boolean) => {
     if (!step || stopped) return;
+    if (step === 'ahead' && !skip) {
+      const kind: UpcomingKind = label === 'Travel' ? 'travel' : label === 'Busy week' ? 'busy' : 'competition';
+      if (kind === 'busy') { saveAhead('busy', 'Busy week', date, [{ from: 'me', text: label }]); return; }
+      setAheadKind(kind);
+      setMsgs((m) => [...m, { from: 'me', text: label }, { from: 'bot', text: kind === 'travel' ? 'When do you leave?' : 'When is it?' }]);
+      return;
+    }
     const a = { ...answers, ...patch };
     const asked2 = [...asked, step];
     setAnswers(a);
@@ -204,6 +234,13 @@ function ScriptedChat({ onClose, go, initialMood, notice }: Props & { notice?: s
       setStep(null);
       setMsgs((m) => [...m, { from: 'me', text: t }, { from: 'bot', text: SAFETY_REPLY.crisis, tone: 'safety' }]);
       return;
+    }
+    if (step === 'ahead' || aheadKind) {
+      const u = parseUpcoming(t, date);
+      const kind = aheadKind ?? u.kind;
+      if (kind && u.date) { saveAhead(kind, aheadKind ? '' : u.label, u.date, [{ from: 'me', text: t }]); return; }
+      if (kind && !u.date) { setAheadKind(kind); setMsgs((m) => [...m, { from: 'me', text: t }, { from: 'bot', text: 'Got it. When is that? Like “Saturday”, “in 5 days” or “12/14”.' }]); return; }
+      if (aheadKind) { setMsgs((m) => [...m, { from: 'me', text: t }, { from: 'bot', text: 'I didn’t catch the day. Try “tomorrow”, “Saturday” or “12/14”, or tap one.' }]); return; }
     }
     const parsed = parseFreeText(t);
     // Free text only fills fields that weren't answered yet, plus the one being asked.
@@ -248,8 +285,14 @@ function ScriptedChat({ onClose, go, initialMood, notice }: Props & { notice?: s
       {q && !stopped && (
         <footer className="chat-input">
           <div className="chips chat-chips">
-            {q.chips.map((c) => <button key={c.label} className="chip" onClick={() => pick(c.label, c.patch, c.skip)} data-testid={`chip-${c.label}`}>{c.label}</button>)}
-            {step !== 'note' && <button className="chip chip-ghost" onClick={() => pick('Skip', {}, true)}>Skip</button>}
+            {aheadKind ? (
+              [['Tomorrow', 1], ['In 2 days', 2], ['In 3 days', 3], ['This weekend', -1], ['Next week', 7]].map(([l, n]) => {
+                const w = new Date().getDay();
+                const when = n === -1 ? addDays(date, w === 6 || w === 0 ? 0 : 6 - w) : addDays(date, n as number);
+                return <button key={l as string} className="chip" onClick={() => pickWhen(l as string, when)} data-testid={`when-${l}`}>{l}</button>;
+              })
+            ) : q.chips.map((c) => <button key={c.label} className="chip" onClick={() => pick(c.label, c.patch, c.skip)} data-testid={`chip-${c.label}`}>{c.label}</button>)}
+            {step !== 'note' && <button className="chip chip-ghost" onClick={() => { setAheadKind(null); pick('Skip', {}, true); }}>Skip</button>}
           </div>
           <form className="row" onSubmit={(e) => { e.preventDefault(); send(); }}>
             <input ref={inputRef} className="input grow" value={text} onChange={(e) => setText(e.target.value)} placeholder="Or type: “tired, slept 6h, 20 min free”" aria-label="Type your answer" data-testid="chat-text" maxLength={300} />

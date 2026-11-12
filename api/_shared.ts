@@ -6,7 +6,8 @@
 //   SUPABASE_ANON_KEY           public anon key
 //   SUPABASE_SERVICE_ROLE_KEY   SECRET: only the Stripe webhook and checkout use it
 //   STRIPE_SECRET_KEY           SECRET: sk_test_... while testing
-//   STRIPE_WEBHOOK_SECRET       SECRET: whsec_... from the webhook endpoint
+//   STRIPE_WEBHOOK_SECRET       SECRET: whsec_... from the webhook endpoint (your account's events)
+//   STRIPE_CONNECT_WEBHOOK_SECRET SECRET: whsec_... from the same URL's "connected accounts" endpoint
 //   ANTHROPIC_API_KEY           SECRET: for the AI check-in
 //   PX_PRICE_CENTS              optional, defaults to 2500 ($25.00)
 
@@ -52,10 +53,10 @@ export function formEncode(obj: Record<string, unknown>, prefix = ''): string {
   return parts.filter(Boolean).join('&');
 }
 
-export async function stripe(path: string, params: Record<string, unknown> | null = null, method = 'POST') {
+export async function stripe(path: string, params: Record<string, unknown> | null = null, method = 'POST', account?: string) {
   const res = await fetch(`https://api.stripe.com/v1${path}`, {
     method,
-    headers: { authorization: `Bearer ${env('STRIPE_SECRET_KEY')}`, 'content-type': 'application/x-www-form-urlencoded' },
+    headers: { authorization: `Bearer ${env('STRIPE_SECRET_KEY')}`, 'content-type': 'application/x-www-form-urlencoded', ...(account ? { 'stripe-account': account } : {}) },
     body: params && method !== 'GET' ? formEncode(params) : undefined,
   });
   const body = await res.json();

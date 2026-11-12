@@ -119,6 +119,15 @@ await step('client onboarding, then the chat check-in saves structured data', as
   await page.getByTestId('chat-send').click();
   await page.getByText('Anything going on with your body or your day?').waitFor();
   await page.getByTestId('chip-A bit sore').click();
+  await page.getByText(/Anything coming up this week/).waitFor();
+  await page.getByTestId('chat-text').fill('fight on saturday');
+  await page.getByTestId('chat-send').click();
+  await page.getByText(/Noted: Fight on /).waitFor();
+  const up = await page.evaluate(() => globalThis.__kova.get().upcoming);
+  assert.equal(up.length, 1);
+  assert.equal(up[0].kind, 'competition');
+  assert.equal(new Date(up[0].date + 'T12:00').getDay(), 6, 'saved for a Saturday');
+  await page.getByText('Anything else you want me to remember?').waitFor();
   await page.getByTestId('chat-text').fill('left knee a little cranky after stairs');
   await page.getByTestId('chat-send').click();
   await page.getByText(/Got it: feeling okay, energy 2\/5, 6 h sleep, 20 min free/).waitFor();
