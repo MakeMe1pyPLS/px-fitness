@@ -1,3 +1,5 @@
+import { DEMO } from './config';
+import { exitDemo } from './lib/demo';
 import React, { useEffect, useState } from 'react';
 import { Icon, ToastProvider, fmtClock, store, useData, useNow, useRoute, type Route } from './components/core';
 import { activeSession } from './lib/planner';
@@ -89,6 +91,7 @@ function Shell() {
 
   return (
     <>
+      {DEMO && <div className="banner" role="note" data-testid="demo-banner"><span><b>Preview mode:</b> sample people, nothing is real or online</span><button className="btn btn-ghost btn-sm" onClick={exitDemo} data-testid="demo-exit">Exit</button></div>}
       {data.settings.sampleData && <div className="banner" role="note"><span>Sample data: made up for demo purposes</span><button className="btn btn-ghost btn-sm" onClick={() => go('you')}>Manage</button></div>}
       {(store.lastError || !store.persistent) && <div className="banner warn" role="alert">{store.lastError ?? 'This browser is blocking storage. Data will be lost when you close the page.'}</div>}
       <div className="app">

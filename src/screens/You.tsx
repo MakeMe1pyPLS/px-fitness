@@ -1,3 +1,5 @@
+import { DEMO, realCloudConfigured } from '../config';
+import { startDemo, exitDemo } from '../lib/demo';
 import React, { useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, Switch, store, useCloud, useData, useToast, type Route } from '../components/core';
 import { RULE_LABELS } from '../lib/insights';
@@ -111,6 +113,9 @@ export function You({ go }: { go: (r: Route) => void }) {
 
       <section className="card stack">
         <h2 className="eyebrow">Demo</h2>
+        {DEMO
+          ? <><p className="small muted">You’re previewing accounts, Friends, coaching, payments and PX Saturdays with sample people. Nothing leaves this phone and no money moves.</p><button className="btn btn-outline" onClick={exitDemo} data-testid="demo-off">Exit preview</button></>
+          : !realCloudConfigured && <><p className="small muted">Preview the Friends tab, coach & client tools, in-app coaching payments and PX Saturdays with sample people. Runs only on this phone; nothing is real, online or charged. Your own data stays as it is.</p><button className="btn btn-primary" onClick={startDemo} data-testid="demo-on">Preview Friends & coaching</button></>}
         {data.settings.sampleData
           ? <button className="btn btn-outline" onClick={() => setConfirm('clearSample')}>Clear sample data</button>
           : <><p className="small muted">Load 7 weeks of made-up training to preview progress charts and insights. It replaces what’s here, and a banner marks it as sample data.</p><button className="btn btn-outline" onClick={() => setConfirm('sample')} data-testid="load-sample">Load sample data</button></>}
