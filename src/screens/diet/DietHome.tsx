@@ -1,3 +1,4 @@
+import { RecipeArt } from '../../components/RecipeArt';
 import React, { useMemo, useState } from 'react';
 import { Icon, Sheet, store, useData, useToast, type Route } from '../../components/core';
 import { goalLabel, disciplineLabel, drivingDiscipline, GOALS } from '../../lib/goals';
@@ -47,6 +48,7 @@ export function ChooseMeal({ data }: { data: AppData }) {
         <p className="muted">Nothing in the recipe library fits your current preferences for {MT_LABEL[mealType].toLowerCase()}{seen.length ? ' that you haven’t seen yet' : ''}. {seen.length ? <button className="link" onClick={() => setSeen([])}>Start over</button> : 'Try loosening the prep time or kitchen settings.'}</p>
       ) : (
         <>
+          <button className="art-btn" onClick={() => setOpen(true)} aria-label={`Open recipe: ${top.resolved.recipe.name}`}><RecipeArt id={top.resolved.recipe.id} name={top.resolved.recipe.name} /></button>
           <div>
             <h3 className="display" style={{ fontSize: 'var(--t-xl)' }} data-testid="rec-name">{top.resolved.recipe.name}</h3>
             <p className="small muted">{top.resolved.recipe.prepMin + top.resolved.recipe.cookMin} min · about {money(data, top.costPerServing)} a serving</p>
@@ -119,7 +121,7 @@ export function DietHome({ go }: { go: (r: Route) => void }) {
               const it = details.items.find((i) => i.item.mealType === m && (active!.eaten[i.item.recipeId] ?? 0) < i.item.servings) ?? details.items.find((i) => i.item.mealType === m);
               if (!it) return null;
               const left = it.item.servings - (active!.eaten[it.item.recipeId] ?? 0);
-              return <div key={m} className="list-row"><span><span className="small muted">{MT_LABEL[m]}</span><br /><b>{it.resolved.recipe.name}</b></span><span className="small muted tnum">{left} left</span></div>;
+              return <div key={m} className="list-row"><span className="row" style={{ gap: 12 }}><span className="art-thumb"><RecipeArt id={it.resolved.recipe.id} name={it.resolved.recipe.name} variant="thumb" /></span><span><span className="small muted">{MT_LABEL[m]}</span><br /><b>{it.resolved.recipe.name}</b></span></span><span className="small muted tnum">{left} left</span></div>;
             })}
           </div>
         ) : <p className="small muted">No meal plan yet. <button className="link" onClick={() => go('diet-prep')}>Plan a few days</button> or use “Choose a meal for me”.</p>}
@@ -206,7 +208,7 @@ export function MealsView({ go }: { go: (r: Route) => void }) {
               const eaten = active!.eaten[d.item.recipeId] ?? 0;
               return (
                 <div key={d.item.recipeId} className="stack" style={{ gap: 6, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
-                  <div className="row-between"><span><span className="small muted">{MT_LABEL[d.item.mealType]}</span><br /><button className="link" style={{ padding: 0, minHeight: 0, textAlign: 'left' }} onClick={() => setOpen(d.item.recipeId)}>{d.resolved.recipe.name}</button></span><span className="small tnum">{eaten}/{d.item.servings} eaten</span></div>
+                  <div className="row-between"><span className="row" style={{ gap: 12 }}><span className="art-thumb"><RecipeArt id={d.resolved.recipe.id} name={d.resolved.recipe.name} variant="thumb" /></span><span><span className="small muted">{MT_LABEL[d.item.mealType]}</span><br /><button className="link" style={{ padding: 0, minHeight: 0, textAlign: 'left' }} onClick={() => setOpen(d.item.recipeId)}>{d.resolved.recipe.name}</button></span></span><span className="small tnum">{eaten}/{d.item.servings} eaten</span></div>
                   <NutrientRow n={d.perServing} data={data} />
                   <button className="btn btn-outline btn-sm" disabled={eaten >= d.item.servings} onClick={() => { store.eatFromPlan(active!.id, d.item.recipeId, d.resolved.recipe.name); toast('Logged one serving'); }} data-testid="eat-serving">Ate a serving</button>
                 </div>
@@ -263,7 +265,8 @@ export function SavedView({ go }: { go: (r: Route) => void }) {
             const n = nutrientsOf(r.ingredients, r.servings);
             return (
               <button key={r.id} className="list-row" onClick={() => setOpen(r.id)}>
-                <span><b>{r.name}</b><br /><span className="small muted">{r.prepMin + r.cookMin} min · {r.mealTypes.join(', ')}{prefs.showNumbers ? ` · ~${n.p} g protein` : ''}{!fits.has(r.id) ? ' · doesn’t fit your preferences' : ''}</span></span>
+                <span className="art-thumb"><RecipeArt id={r.id} name={r.name} variant="thumb" /></span>
+                <span className="grow" style={{ textAlign: 'left' }}><b>{r.name}</b><br /><span className="small muted">{r.prepMin + r.cookMin} min · {r.mealTypes.join(', ')}{prefs.showNumbers ? ` · ~${n.p} g protein` : ''}{!fits.has(r.id) ? ' · doesn’t fit your preferences' : ''}</span></span>
                 {data.nutrition.saved.includes(r.id) ? <Icon.star filled size={18} /> : <Icon.arrow size={16} />}
               </button>
             );

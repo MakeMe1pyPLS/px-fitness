@@ -1,3 +1,4 @@
+import { RecipeArt } from '../../components/RecipeArt';
 import React, { useMemo, useState } from 'react';
 import { Icon, Sheet, store, useToast } from '../../components/core';
 import { ALLERGEN_LABEL, ingredient, recipe as getRecipe, type Recipe } from '../../lib/foods';
@@ -68,6 +69,7 @@ export function RecipeSheet({ data, recipeId, onClose, servings: initial, swaps:
   return (
     <Sheet title={r.name} onClose={onClose}>
       <div className="stack-lg" data-testid="recipe-sheet">
+        <RecipeArt id={r.id} name={r.name} />
         <div className="row wrap" style={{ gap: 6 }}>
           <span className="badge">{r.prepMin} min prep</span>
           {r.cookMin > 0 && <span className="badge">{r.cookMin} min cook</span>}

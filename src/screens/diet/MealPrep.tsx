@@ -1,3 +1,4 @@
+import { RecipeArt } from '../../components/RecipeArt';
 import React, { useMemo, useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, store, useData, useToast, type Route } from '../../components/core';
 import { budgetSummary, generatePlan, planDetails, prefsOf, recommend, type PrepOptions } from '../../lib/nutrition';
@@ -128,7 +129,7 @@ function PlanEditor({ data, plan, go, onNew }: { data: AppData; plan: MealPlan; 
       {d.items.map((it, i) => (
         <section key={i} className="card stack" data-testid="plan-item">
           <div className="row-between" style={{ alignItems: 'flex-start' }}>
-            <div><span className="eyebrow">{MT_LABEL[it.item.mealType]}</span><h3 className="display" style={{ fontSize: 'var(--t-lg)' }}>{it.resolved.recipe.name}</h3></div>
+            <div className="row" style={{ gap: 12, alignItems: 'flex-start' }}><span className="art-thumb art-thumb-lg"><RecipeArt id={it.resolved.recipe.id} name={it.resolved.recipe.name} variant="thumb" /></span><div><span className="eyebrow">{MT_LABEL[it.item.mealType]}</span><h3 className="display" style={{ fontSize: 'var(--t-lg)' }}>{it.resolved.recipe.name}</h3></div></div>
             <button className="icon-btn" aria-label={`Remove ${it.resolved.recipe.name}`} onClick={() => store.removePlanItem(plan.id, i)}><Icon.trash /></button>
           </div>
           {Object.keys(it.item.swaps).length > 0 && <p className="small muted">Your swaps: {Object.entries(it.item.swaps).map(([a, b2]) => `${a.replace(/-/g, ' ')} → ${b2.replace(/-/g, ' ')}`).join(', ')}</p>}
@@ -164,7 +165,8 @@ function PlanEditor({ data, plan, go, onNew }: { data: AppData; plan: MealPlan; 
           <div className="list">
             {recommend(data, d.items[replace].item.mealType, plan.items.map((x) => x.recipeId)).slice(0, 8).map((r) => (
               <button key={r.resolved.recipe.id} className="list-row" onClick={() => { store.updatePlanItem(plan.id, replace, { recipeId: r.resolved.recipe.id, swaps: {} }); store.mealFeedback(d.items[replace].item.recipeId, 'shuffled'); setReplace(null); toast('Meal replaced, list updated'); }}>
-                <span><b>{r.resolved.recipe.name}</b><br /><span className="small muted">{money(data, r.costPerServing)}/serving{prefsOf(data).showNumbers ? ` · ${r.perServing.p} g protein` : ''}</span></span><Icon.arrow size={16} />
+                <span className="art-thumb"><RecipeArt id={r.resolved.recipe.id} name={r.resolved.recipe.name} variant="thumb" /></span>
+                <span className="grow" style={{ textAlign: 'left' }}><b>{r.resolved.recipe.name}</b><br /><span className="small muted">{money(data, r.costPerServing)}/serving{prefsOf(data).showNumbers ? ` · ${r.perServing.p} g protein` : ''}</span></span><Icon.arrow size={16} />
               </button>
             ))}
           </div>
