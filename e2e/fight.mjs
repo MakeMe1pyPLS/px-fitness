@@ -1,0 +1,93 @@
+// Fight camp: setup from You, plan by size & stance, camp countdown feeds Today, round timer.
+import { chromium, devices } from 'playwright';
+import { createServer } from 'node:http';
+import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
+const html = readFileSync('dist/index.html');
+const server = createServer((_, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end(html); }).listen(0);
+const url = `http://127.0.0.1:${server.address().port}/`;
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+await ctx.route(/fonts\./, (r) => r.abort());
+const page = await ctx.newPage(); page.setDefaultTimeout(8000);
+const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+const results = [];
+const step = async (n, fn) => { try { await fn(); results.push(['PASS', n]); } catch (e) { results.push(['FAIL', n, e.message.split('\n')[0]]); await page.screenshot({ path: `e2e/shots/ffail-${results.length}.png` }).catch(() => {}); } };
+const inDays = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+
+await step('set up fight camp from You', async () => {
+  await page.goto(url + '#welcome');
+  await page.getByTestId('cta-start').click();
+  await page.getByTestId('goal-strength').click();
+  for (let i = 0; i < 6; i++) await page.getByTestId('onb-next').click();
+  await page.getByTestId('onb-finish').click();
+  await page.getByTestId('open-chat').waitFor();
+  assert.equal(await page.getByTestId('fight-entry').count(), 0, 'no fight card until opted in');
+  await page.goto(url + '#you');
+  await page.getByTestId('open-fight').click();
+  await page.getByTestId('ft-sport').selectOption('Boxing');
+  await page.getByTestId('ft-stance-orthodox').click();
+  await page.getByTestId('ft-height-ft').fill('6');
+  await page.getByTestId('ft-height-in').fill('0');
+  await page.getByTestId('ft-weight').fill('170');
+  await page.getByTestId('ft-date').fill(inDays(20));
+  await page.getByTestId('ft-name').fill('Golden Gloves');
+  await page.getByTestId('ft-save').click();
+  await page.getByTestId('fight-profile').waitFor();
+  assert.match(await page.getByTestId('fight-profile').innerText(), /Boxing · Orthodox · 6′0″ · 170 lb/);
+  assert.match(await page.getByTestId('fight-camp').innerText(), /Sharpen/i);
+  assert.match(await page.getByTestId('camp-days').innerText(), /20 days/);
+});
+await step('fight date becomes a coming-up event', async () => {
+  const up = await page.evaluate(() => globalThis.__kova.get().upcoming);
+  assert.equal(up.filter((u) => u.kind === 'competition' && u.label === 'Golden Gloves').length, 1);
+});
+await step('taller opponent southpaw: pressure plan + open stance', async () => {
+  await page.getByTestId('op-height-ft').fill('6');
+  await page.getByTestId('op-height-in').fill('4');
+  await page.getByTestId('op-stance-southpaw').click();
+  assert.equal(await page.getByTestId('plan-head').innerText(), 'Close the distance');
+  assert.match(await page.getByTestId('size-line').innerText(), /Shorter reach by 4 in \(estimated from height\)/);
+  assert.match(await page.getByTestId('stance-plan').innerText(), /Open stance/);
+  await page.getByTestId('op-height-in').fill('');
+  await page.getByTestId('op-height-ft').fill('5');
+  await page.getByTestId('op-height-in').fill('7');
+  assert.equal(await page.getByTestId('plan-head').innerText(), 'Keep it long');
+  await page.screenshot({ path: 'e2e/shots/fight-plan.png', fullPage: true });
+});
+await step('round timer: get ready, round 1 with a cue, stop', async () => {
+  await page.getByTestId('rt-rounds-1').click();
+  await page.getByTestId('rt-work-60').click();
+  await page.getByTestId('rt-start').click();
+  await page.getByTestId('rt-live').waitFor();
+  assert.match(await page.getByTestId('rt-live').innerText(), /Get ready/i);
+  await page.getByText(/Round 1 of 1/i).waitFor({ timeout: 8000 });
+  assert.ok((await page.getByTestId('rt-cue').innerText()).length > 1);
+  await page.screenshot({ path: 'e2e/shots/fight-timer.png' });
+  await page.getByTestId('rt-stop').click();
+  await page.getByTestId('rt-start').waitFor();
+});
+await step('Today shows the fight camp card and links to it', async () => {
+  await page.goto(url + '#home');
+  assert.match(await page.getByTestId('fight-entry').innerText(), /Sharpen · 20 days to Golden Gloves/);
+  await page.getByTestId('fight-entry').click();
+  await page.getByTestId('fight-camp').waitFor();
+});
+await step('editing the date replaces the event; removing clears it', async () => {
+  await page.getByTestId('ft-edit').click();
+  await page.getByTestId('ft-date').fill(inDays(5));
+  await page.getByTestId('ft-save').click();
+  assert.match(await page.getByTestId('fight-camp').innerText(), /Fight week/i);
+  let up = await page.evaluate(() => globalThis.__kova.get().upcoming.filter((u) => u.kind === 'competition'));
+  assert.equal(up.length, 1);
+  await page.getByTestId('ft-edit').click();
+  await page.getByTestId('ft-remove').click();
+  up = await page.evaluate(() => globalThis.__kova.get().upcoming.filter((u) => u.kind === 'competition'));
+  assert.equal(up.length, 0);
+  await page.getByTestId('fight-form').waitFor();
+});
+await step('no page errors', async () => assert.deepEqual(errors, []));
+for (const r of results) console.log(r.join('  '));
+console.log(`${results.filter((r) => r[0] === 'PASS').length}/${results.length} passed`);
+await browser.close(); server.close();
+process.exit(results.every((r) => r[0] === 'PASS') ? 0 : 1);

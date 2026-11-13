@@ -15,7 +15,7 @@ export function buzz(pattern: number | number[] = 8) {
 }
 
 /** Little spark burst at a point on the screen. */
-export function burst(x: number, y: number, n = 10, colors = ['#ff5a1f', '#ffb36b', '#39e6ff', '#ff3d7f']) {
+export function burst(x: number, y: number, n = 10, colors = ['#ff5a1f', '#ff8a55', '#f4efe8']) {
   if (prefersReduced()) return;
   const layer = document.createElement('div');
   layer.className = 'fx-burst';

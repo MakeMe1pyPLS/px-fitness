@@ -79,8 +79,8 @@ function Dial() {
       <button ref={ref} className="dial" aria-label="Fidget dial. Drag to spin, or use arrow keys." onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onKeyDown={key} data-testid="dial">
         <svg viewBox="-110 -110 220 220" aria-hidden>
           <defs>
-            <radialGradient id="dialg" cx="35%" cy="30%"><stop offset="0" stopColor="#2a2f44" /><stop offset="1" stopColor="#0b0c12" /></radialGradient>
-            <linearGradient id="trailg"><stop offset="0" stopColor="#ff5a1f" /><stop offset="0.5" stopColor="#ff3d7f" /><stop offset="1" stopColor="#39e6ff" /></linearGradient>
+            <radialGradient id="dialg" cx="35%" cy="30%"><stop offset="0" stopColor="#2c2a29" /><stop offset="1" stopColor="#0b0c12" /></radialGradient>
+            <linearGradient id="trailg"><stop offset="0" stopColor="#ff5a1f" /><stop offset="1" stopColor="#ff9a6a" /></linearGradient>
           </defs>
           <circle r="104" className="dial-face" />
           {notches.map((i) => { const a = (i * DETENT * Math.PI) / 180; return <line key={i} className={'dial-notch' + (hot === i ? ' hot' : '')} x1={Math.cos(a) * 88} y1={Math.sin(a) * 88} x2={Math.cos(a) * 98} y2={Math.sin(a) * 98} />; })}

@@ -6,6 +6,7 @@ import { activeSession } from './lib/planner';
 import { Landing } from './screens/Landing';
 import { Onboarding } from './screens/Onboarding';
 import { Home } from './screens/Home';
+import { Fight } from './screens/Fight';
 import { Complete, Workout } from './screens/Workout';
 import { Progress } from './screens/Progress';
 import { Insights } from './screens/Insights';
@@ -102,6 +103,7 @@ function Shell() {
           {appRoute === 'you' && <You go={go} />}
           {appRoute === 'friends' && <Friends go={go} />}
           {appRoute === 'coach' && <Coaching go={go} />}
+          {appRoute === 'fight' && <Fight go={go} />}
           {appRoute === 'biz' && <BizDesk go={go} />}
           {appRoute === 'biz-clients' && <BizClients />}
           {appRoute === 'biz-schedule' && <BizSchedule />}

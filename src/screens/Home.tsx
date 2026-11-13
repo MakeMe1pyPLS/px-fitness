@@ -17,6 +17,7 @@ import { budgetSummary } from '../lib/nutrition';
 import { withViewTransition } from '../lib/motion';
 import { BRAND } from '../brand';
 import { FidgetPad } from '../components/Fidget';
+import { campPhase } from '../lib/combat';
 import { buzz } from '../lib/fx';
 import type { AppData } from '../lib/types';
 
@@ -224,6 +225,16 @@ export function Home({ go }: { go: (r: Route) => void }) {
       ) : null}
 
       <FidgetPad onStart={active ? () => withViewTransition(() => flushSync(() => go('workout'))) : !doneToday.length && !skippedToday ? () => start('short') : undefined} />
+
+      {data.combat && (
+        <button className="card card-press fight-entry row-between" onClick={() => go('fight')} data-testid="fight-entry">
+          <span className="stack" style={{ gap: 2, textAlign: 'left' }}>
+            <span className="eyebrow">Fight camp</span>
+            <b>{data.combat.fightDate ? (() => { const ph = campPhase(data.combat.fightDate, toDateKey(new Date())); return ph.days > 0 ? `${ph.name} · ${plural(ph.days, 'day')} to ${data.combat.fightName || 'fight'}` : ph.name; })() : `${data.combat.sport}: game plan & round timer`}</b>
+          </span>
+          <span aria-hidden style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><Icon.back /></span>
+        </button>
+      )}
 
       <TrainTodayCard />
       <EventTodayCard />

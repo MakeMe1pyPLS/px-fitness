@@ -353,7 +353,8 @@ export function CombatCard() {
   const me = s.me!;
   const cur = me.shared?.combat;
   const n = data.nutrition?.prefs;
-  const [f, setF] = useState<CombatInfo>(() => ({ sport: cur?.sport ?? '', heightCm: cur?.heightCm ?? n?.heightCm, weightKg: cur?.weightKg ?? n?.weightKg, fightDate: cur?.fightDate ?? '', fightName: cur?.fightName ?? '' }));
+  const lc = data.combat; // fight camp profile on this device
+  const [f, setF] = useState<CombatInfo>(() => ({ sport: cur?.sport ?? lc?.sport ?? '', heightCm: cur?.heightCm ?? lc?.heightCm ?? n?.heightCm, weightKg: cur?.weightKg ?? lc?.weightKg ?? n?.weightKg, fightDate: cur?.fightDate ?? lc?.fightDate ?? '', fightName: cur?.fightName ?? lc?.fightName ?? '' }));
   const [busy, setBusy] = useState(false);
   const matches = useMemo(() => sizeMatches(me.share_combat ? cur : undefined, s.friends), [me.share_combat, cur, s.friends]);
   const imperial = (data.profile?.unit ?? 'lb') === 'lb';

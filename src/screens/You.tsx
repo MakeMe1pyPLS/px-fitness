@@ -87,6 +87,12 @@ export function You({ go }: { go: (r: Route) => void }) {
       </section>
 
       <section className="card stack">
+        <h2 className="eyebrow">Combat sports</h2>
+        <p className="small muted">{data.combat ? `${data.combat.sport}${data.combat.fightDate ? ' · fight on ' + data.combat.fightDate : ''}` : 'Box, kickbox, Muay Thai, MMA, wrestling or jiu-jitsu? Get a game plan by size and stance, a fight-camp countdown and a round timer.'}</p>
+        <button className="btn btn-outline" onClick={() => go('fight')} data-testid="open-fight">{data.combat ? 'Open fight camp' : 'Set up fight camp'}</button>
+      </section>
+
+      <section className="card stack">
         <h2 className="eyebrow">What the check-in remembers</h2>
         {data.checkinMemory.length === 0 ? <p className="small muted">Nothing yet. When you tell the check-in something in your own words, it keeps a short note so it can ask about it next time.</p> : (
           <div className="list">{data.checkinMemory.map((m, i) => <div key={i} className="list-row"><span className="small"><span className="muted">{m.date.slice(5)} · </span>{m.text}</span><button className="icon-btn" aria-label="Forget this" onClick={() => store.forgetMemory(i)}><Icon.trash /></button></div>)}</div>

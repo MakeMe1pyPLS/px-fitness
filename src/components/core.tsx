@@ -28,8 +28,8 @@ export function useSocial() {
 }
 
 // ── Routing (hash names only: works inside sandboxed hosts) ───────────────
-export type Route = 'welcome' | 'onboarding' | 'home' | 'workout' | 'progress' | 'insights' | 'you' | 'friends' | 'diet' | 'diet-meals' | 'diet-prep' | 'diet-budget' | 'diet-grocery' | 'diet-near' | 'diet-prefs' | 'diet-saved' | 'coach' | 'biz' | 'biz-clients' | 'biz-schedule' | 'biz-pay' | 'biz-setup';
-const ROUTES: Route[] = ['welcome', 'onboarding', 'home', 'workout', 'progress', 'insights', 'you', 'friends', 'diet', 'diet-meals', 'diet-prep', 'diet-budget', 'diet-grocery', 'diet-near', 'diet-prefs', 'diet-saved', 'coach', 'biz', 'biz-clients', 'biz-schedule', 'biz-pay', 'biz-setup'];
+export type Route = 'welcome' | 'onboarding' | 'home' | 'workout' | 'progress' | 'insights' | 'you' | 'friends' | 'fight' | 'diet' | 'diet-meals' | 'diet-prep' | 'diet-budget' | 'diet-grocery' | 'diet-near' | 'diet-prefs' | 'diet-saved' | 'coach' | 'biz' | 'biz-clients' | 'biz-schedule' | 'biz-pay' | 'biz-setup';
+const ROUTES: Route[] = ['welcome', 'onboarding', 'home', 'workout', 'progress', 'insights', 'you', 'friends', 'fight', 'diet', 'diet-meals', 'diet-prep', 'diet-budget', 'diet-grocery', 'diet-near', 'diet-prefs', 'diet-saved', 'coach', 'biz', 'biz-clients', 'biz-schedule', 'biz-pay', 'biz-setup'];
 
 export function useRoute(fallback: Route): [Route, (r: Route) => void] {
   const read = () => {

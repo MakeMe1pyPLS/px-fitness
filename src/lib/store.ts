@@ -407,6 +407,21 @@ export class Store {
   }
   removeUpcoming(id: string) { this.update((d) => ({ ...d, upcoming: d.upcoming.filter((x) => x.id !== id) })); }
 
+  /** Save the combat profile. A fight date becomes a "coming up" event so training tapers. */
+  setCombat(f: import('./combat').Fighter | null) {
+    this.update((d) => {
+      const old = d.combat;
+      let upcoming = old?.upcomingId ? d.upcoming.filter((x) => x.id !== old.upcomingId) : d.upcoming;
+      if (!f) { const { combat: _c, ...rest } = d; return { ...rest, upcoming }; }
+      let upcomingId: string | undefined;
+      if (f.fightDate && f.fightDate >= toDateKey(new Date())) {
+        const ev = { id: uid('up'), kind: 'competition' as const, label: (f.fightName?.trim() || `${f.sport} fight`).slice(0, 60), date: f.fightDate, createdAt: new Date().toISOString() };
+        upcoming = [...upcoming, ev].slice(-40); upcomingId = ev.id;
+      }
+      return { ...d, upcoming, combat: { ...f, upcomingId } };
+    });
+  }
+
   /** Set a PX Boot Camp level (moving down is allowed for honest corrections). */
   setSkillLevel(ladderId: string, level: number, date = toDateKey(new Date())) {
     this.update((d) => {
