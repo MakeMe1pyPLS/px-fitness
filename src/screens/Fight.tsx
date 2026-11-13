@@ -2,7 +2,7 @@
 // countdown, and a round timer that calls your game-plan cues each round.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Icon, store, useData, useToast, type Route } from '../components/core';
+import { store, useData, useToast, type Route } from '../components/core';
 import { SlidingPicker } from '../components/motion';
 import { buzz } from '../lib/fx';
 import { toDateKey, formatShortDate, plural } from '../lib/dates';
@@ -18,12 +18,13 @@ export function Fight({ go }: { go: (r: Route) => void }) {
   const imperial = (data.profile?.unit ?? 'lb') === 'lb';
   return (
     <div className="page stack-lg">
-      <header className="page-head row" style={{ gap: 10 }}>
-        <button className="icon-btn" aria-label="Back" onClick={() => go('home')}><Icon.back /></button>
-        <h1 className="page-title display">Fight camp</h1>
-      </header>
+      <header className="page-head"><h1 className="page-title display">Fight</h1></header>
+      {!f && <p className="muted" style={{ marginTop: 0 }}>Box, kickbox, Muay Thai, MMA, wrestle or roll? Set up your profile for a game plan and a fight-camp countdown. The round timer works right away.</p>}
       {editing || !f
-        ? <ProfileForm initial={f} imperial={imperial} heightCm={data.nutrition?.prefs?.heightCm} weightKg={data.nutrition?.prefs?.weightKg} onDone={() => setEditing(false)} onCancel={f ? () => setEditing(false) : undefined} />
+        ? <>
+          <ProfileForm initial={f} imperial={imperial} heightCm={data.nutrition?.prefs?.heightCm} weightKg={data.nutrition?.prefs?.weightKg} onDone={() => setEditing(false)} onCancel={f ? () => setEditing(false) : undefined} />
+          {!f && <RoundTimer sport="Boxing" me={{ sport: 'Boxing' }} />}
+        </>
         : <>
           <ProfileSummary f={f} imperial={imperial} onEdit={() => setEditing(true)} />
           {f.fightDate && <Camp f={f} />}
@@ -176,6 +177,7 @@ function RoundTimer({ sport, me }: { sport: Sport; me: Fighter }) {
   const [round, setRound] = useState(1);
   const [left, setLeft] = useState(0);
   const [sound, setSound] = useState(true);
+  const [logged, setLogged] = useState(false);
   const cues = useMemo(() => { try { const o = JSON.parse(localStorage.getItem(OPP_KEY) ?? '{}'); return matchup(me, o).cues; } catch { return matchup(me, {}).cues; } }, [me, phase === 'ready']); // eslint-disable-line react-hooks/exhaustive-deps
   const lock = useRef<{ release?: () => Promise<void> } | null>(null);
   const st = useRef({ phase, round, end: 0 });
@@ -241,7 +243,10 @@ function RoundTimer({ sport, me }: { sport: Sport; me: Fighter }) {
       {phase === 'done' && (
         <div className="stack" data-testid="rt-done">
           <p className="h2" style={{ margin: 0 }}>{plural(rounds, 'round')} done.</p>
-          <button className="btn btn-outline" onClick={() => setPhase('idle')}>Again</button>
+          {logged
+            ? <p className="small muted" style={{ margin: 0 }} data-testid="rt-logged">Logged in your workouts.</p>
+            : <button className="btn btn-primary" onClick={() => { store.logRounds(rounds, work, sport); setLogged(true); buzz([8, 40, 12]); }} data-testid="rt-log">Log these rounds</button>}
+          <button className="btn btn-outline" onClick={() => { setPhase('idle'); setLogged(false); }}>Again</button>
         </div>
       )}
     </section>

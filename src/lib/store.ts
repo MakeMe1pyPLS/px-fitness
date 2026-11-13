@@ -407,6 +407,18 @@ export class Store {
   }
   removeUpcoming(id: string) { this.update((d) => ({ ...d, upcoming: d.upcoming.filter((x) => x.id !== id) })); }
 
+  /** Log rounds done on the Fight round timer as a completed workout. */
+  logRounds(rounds: number, workSec: number, sport: string) {
+    const now = new Date();
+    const s: Session = {
+      id: uid('s_'), templateId: null, name: `${sport} rounds`, variant: 'full', plannedFor: toDateKey(now),
+      startedAt: new Date(now.getTime() - rounds * workSec * 1000).toISOString(), endedAt: now.toISOString(), status: 'completed',
+      exercises: [{ exerciseId: 'shadow-boxing', target: `${Math.round(workSec / 60)} min rounds`, sets: Array.from({ length: rounds }, () => ({ seconds: workSec, done: true })) }],
+    };
+    this.update((d) => ({ ...d, sessions: [...d.sessions, s] }));
+    return s;
+  }
+
   /** Save the combat profile. A fight date becomes a "coming up" event so training tapers. */
   setCombat(f: import('./combat').Fighter | null) {
     this.update((d) => {

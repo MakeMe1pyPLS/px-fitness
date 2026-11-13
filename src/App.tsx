@@ -37,6 +37,7 @@ const TABS: { id: Route; label: string; icon: keyof typeof Icon }[] = [
   { id: 'home', label: 'Today', icon: 'today' },
   { id: 'progress', label: 'Progress', icon: 'progress' },
   { id: 'diet', label: 'Meals', icon: 'diet' },
+  { id: 'fight', label: 'Fight', icon: 'fight' },
   ...(cloudEnabled() ? [{ id: 'friends' as Route, label: 'Friends', icon: 'people' as const }] : []),
   { id: 'insights', label: 'Insights', icon: 'insight' },
   { id: 'you', label: 'You', icon: 'you' },

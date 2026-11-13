@@ -27,6 +27,10 @@ const SLOTS: Record<string, string[]> = {
   bwlegs: ['split-squat', 'bw-squat'],
   pike: ['pike-push-up'],
   aerobic: ['easy-run', 'brisk-walk'],
+  shadow: ['shadow-boxing'],
+  bag: ['heavy-bag', 'shadow-boxing'],
+  rope: ['jump-rope', 'jumping-jacks'],
+  sprawl: ['sprawl', 'mountain-climber'],
   power: ['jump-squat', 'kb-swing'],
   mob_hip: ['hip-flexor-stretch', 'deep-squat-hold'],
   mob_spine: ['thoracic-rotation'],
@@ -42,10 +46,13 @@ function targetFor(ex: Exercise, profile: Profile): string {
   const d = drivingDiscipline(profile);
   if (ex.metric === 'time') {
     if (ex.id === 'easy-run') return profile.sessionMinutes >= 45 ? '20 min' : '10 min';
+    if (ex.id === 'shadow-boxing' || ex.id === 'heavy-bag') return profile.sessionMinutes >= 45 ? '3 min rounds' : '2 min rounds';
+    if (ex.id === 'jump-rope') return '2 min';
     if (ex.id.startsWith('hip-') || ex.id === 'deep-squat-hold' || ex.id === 'thoracic-rotation') return '45 s';
     return ex.muscle === 'conditioning' ? '40 s' : '30 s';
   }
   if (ex.id === 'jump-squat') return '5 reps';
+  if (ex.id === 'sprawl') return '10 reps';
   if (ex.metric === 'weight_reps') {
     if (d === 'powerlifting') return '3–5 reps';
     if (d === 'olympic') return '3 fast reps';
@@ -107,6 +114,11 @@ function blueprints(profile: Profile): Blueprint[] {
     ['Pull & Core', 'Pull-up progression', ['bwpull', 'hpull', 'hollow', 'bwlegs', ...(d === 'gymnastics' ? ['mob_squat'] : mob)]],
     ['Push & Legs', 'Dip and push progressions', ['dip', 'bwpush', 'pike', 'bwlegs', ...(d === 'gymnastics' ? ['mob_hip'] : mob)]],
     ...(days >= 3 ? [['Skills & Control', 'Holds and full-body control', ['hollow', 'bwpull', 'bwpush', 'mob_spine', 'mob_hip']] as Blueprint] : []),
+  ];
+  if (d === 'combat') return [
+    ['Fight Rounds', 'Rounds on the bag, power, core', ['rope', 'shadow', 'bag', 'power', 'core']],
+    ['Fight Strength', 'Strength for power and the clinch', ['squat', 'hpull', 'hpush', 'hinge', 'core']],
+    ...(days >= 3 ? [['Fight Engine', 'Conditioning and footwork', ['rope', 'shadow', 'sprawl', 'lunge', 'conditioning']] as Blueprint] : []),
   ];
   if (d === 'running' || profile.goal === 'endurance') return [
     ['Aerobic + Legs', 'Easy run, leg strength', ['aerobic', 'lunge', 'hinge', 'core']],

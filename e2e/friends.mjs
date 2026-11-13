@@ -228,7 +228,7 @@ await step('Friends tab is in the nav and fits on a phone', async () => {
   await onboardAndSignUp(alex, 'alex@px.test');
   const tab = alex.getByRole('link', { name: 'Friends' });
   await tab.waitFor();
-  assert.equal(await alex.locator('.nav a').count(), 6);
+  assert.equal(await alex.locator('.nav a').count(), 7);
   for (const a of await alex.locator('.nav a').all()) { const b = await a.boundingBox(); assert.ok(b.width >= 44 && b.height >= 44, 'tap target'); }
   assert.ok(await alex.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1);
   await tab.click();

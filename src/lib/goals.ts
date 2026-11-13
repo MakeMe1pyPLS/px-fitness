@@ -27,6 +27,7 @@ export const DISCIPLINES: DisciplineInfo[] = [
   { id: 'functional', label: 'Functional fitness', desc: 'Strength for everyday life', emphasis: 'Carries, hinges, squats, conditioning' },
   { id: 'running', label: 'Endurance & running', desc: 'Aerobic base and run fitness', emphasis: 'Easy aerobic work plus strength to stay resilient' },
   { id: 'hybrid', label: 'Hybrid athlete', desc: 'Strength and endurance together', emphasis: 'Lifting plus conditioning in the same week' },
+  { id: 'combat', label: 'Combat sports', desc: 'Boxing, kickboxing, Muay Thai, MMA, grappling', emphasis: 'Fight rounds, power, core strength and conditioning, with a game plan and round timer in Fight' },
   { id: 'sport', label: 'Sport conditioning', desc: 'Support a sport you play', emphasis: 'Power, single-leg work, conditioning' },
 ];
 
@@ -43,7 +44,7 @@ export function migrateGoal(g: string): Goal {
 // more than one, they must name a primary focus.
 const FAMILY: Record<Discipline, string> = {
   bodybuilding: 'hypertrophy', powerlifting: 'maxstrength', olympic: 'power', calisthenics: 'bodyweight', gymnastics: 'bodyweight',
-  general_strength: 'strength', functional: 'strength', running: 'aerobic', hybrid: 'mixed', sport: 'power',
+  general_strength: 'strength', functional: 'strength', running: 'aerobic', hybrid: 'mixed', sport: 'power', combat: 'fight',
 };
 export function needsPrimary(ds: Discipline[]): boolean {
   return new Set(ds.map((d) => FAMILY[d])).size > 1;

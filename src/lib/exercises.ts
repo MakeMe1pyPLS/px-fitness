@@ -49,6 +49,11 @@ export const EXERCISES: Exercise[] = [
   { id: 'dip', name: 'Dip (bars or bench)', muscle: 'push', equipment: 'bodyweight', metric: 'reps', cue: 'Shoulders down; lower until upper arms are about parallel.', substitutes: ['push-up', 'incline-push-up'] },
   { id: 'hollow-hold', name: 'Hollow Body Hold', muscle: 'core', equipment: 'bodyweight', metric: 'time', cue: 'Low back glued down; bend the knees to make it easier.', substitutes: ['dead-bug', 'plank'] },
   { id: 'negative-pull-up', name: 'Pull-up Negative', muscle: 'pull', equipment: 'bodyweight', metric: 'reps', cue: 'Jump to the top, lower yourself over 3–5 seconds.', substitutes: ['inverted-row', 'band-pulldown'] },
+  // Combat
+  { id: 'shadow-boxing', name: 'Shadow Boxing Rounds', muscle: 'conditioning', equipment: 'bodyweight', metric: 'time', cue: 'Hands up, chin down. Throw, move your head, move your feet: every round.', substitutes: ['heavy-bag', 'jump-rope'] },
+  { id: 'heavy-bag', name: 'Heavy Bag Rounds', muscle: 'conditioning', equipment: 'bodyweight', metric: 'time', cue: 'Punch through the bag, reset your guard after every combo. No bag? Shadowbox the same rounds.', substitutes: ['shadow-boxing'] },
+  { id: 'jump-rope', name: 'Jump Rope', muscle: 'conditioning', equipment: 'bodyweight', metric: 'time', cue: 'Light on the balls of your feet; turn the rope from the wrists. No rope? Mime it.', substitutes: ['jumping-jacks', 'shadow-boxing'] },
+  { id: 'sprawl', name: 'Sprawls', muscle: 'conditioning', equipment: 'bodyweight', metric: 'reps', cue: 'Drop the hips to the floor and kick the legs back, then snap back to your stance.', substitutes: ['mountain-climber'] },
   { id: 'easy-run', name: 'Easy Run or Brisk Walk', muscle: 'conditioning', equipment: 'bodyweight', metric: 'time', cue: 'Conversational pace: you could speak in full sentences.', substitutes: ['brisk-walk'] },
   { id: 'deep-squat-hold', name: 'Deep Squat Hold', muscle: 'legs', equipment: 'bodyweight', metric: 'time', cue: 'Hold a support if needed; heels down, chest up, breathe.', substitutes: ['bw-squat'] },
   { id: 'hip-flexor-stretch', name: 'Half-kneeling Hip Flexor Stretch', muscle: 'legs', equipment: 'bodyweight', metric: 'time', cue: 'Tuck the pelvis and squeeze the back glute; gentle, never painful.', substitutes: ['deep-squat-hold'] },

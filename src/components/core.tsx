@@ -183,6 +183,7 @@ export function Scale({ value, onChange, label, low, high, name }: { value?: num
 // ── Icons (original, 24px grid, 2px stroke) ───────────────────────────────
 const P = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
 export const Icon = {
+  fight: (p: { size?: number }) => <svg width={p.size ?? 24} height={p.size ?? 24} viewBox="0 0 24 24" aria-hidden><path d="M7 10V7.5A3.5 3.5 0 0 1 10.5 4h4A3.5 3.5 0 0 1 18 7.5V13a5 5 0 0 1-5 5H10a3 3 0 0 1-3-3v-1.5M7 10a2 2 0 0 0-2 2v.5A1.5 1.5 0 0 0 6.5 14H9m-2-4h4.5a1.5 1.5 0 0 1 0 3H9m1 5v2h5v-2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>,
   today: (p: { size?: number }) => <svg width={p.size ?? 24} height={p.size ?? 24} viewBox="0 0 24 24" aria-hidden><rect x="4" y="5" width="4" height="14" rx="1.5" {...P} /><rect x="10" y="9" width="4" height="10" rx="1.5" {...P} /><rect x="16" y="3" width="4" height="16" rx="1.5" {...P} /></svg>,
   progress: (p: { size?: number }) => <svg width={p.size ?? 24} height={p.size ?? 24} viewBox="0 0 24 24" aria-hidden><path d="M3 19h18" {...P} /><path d="M4 15l5-5 4 3 7-7" {...P} /><path d="M15 6h5v5" {...P} /></svg>,
   insight: (p: { size?: number }) => <svg width={p.size ?? 24} height={p.size ?? 24} viewBox="0 0 24 24" aria-hidden><circle cx="7" cy="16" r="3" {...P} /><circle cx="17" cy="8" r="3" {...P} /><path d="M9.5 14l5-4" {...P} strokeDasharray="2 2.5" /></svg>,

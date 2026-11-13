@@ -6,7 +6,7 @@ export type Goal =
   | 'endurance' | 'strength' | 'mobility' | 'maintain' | 'athletic';
 export type Discipline =
   | 'bodybuilding' | 'powerlifting' | 'olympic' | 'calisthenics' | 'gymnastics'
-  | 'general_strength' | 'functional' | 'running' | 'hybrid' | 'sport';
+  | 'general_strength' | 'functional' | 'running' | 'hybrid' | 'sport' | 'combat';
 export type Experience = 'beginner' | 'intermediate' | 'advanced';
 export type Equipment = 'bodyweight' | 'dumbbells' | 'barbell' | 'machines' | 'bands' | 'kettlebell';
 export type TimeOfDay = 'morning' | 'midday' | 'evening' | 'varies';

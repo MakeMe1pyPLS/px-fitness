@@ -226,6 +226,12 @@ export function Home({ go }: { go: (r: Route) => void }) {
 
       <FidgetPad onStart={active ? () => withViewTransition(() => flushSync(() => go('workout'))) : !doneToday.length && !skippedToday ? () => start('short') : undefined} />
 
+      {!data.combat && p.disciplines.includes('combat') && (
+        <button className="card card-press fight-entry row-between" onClick={() => go('fight')} data-testid="fight-entry">
+          <span className="stack" style={{ gap: 2, textAlign: 'left' }}><span className="eyebrow">Fight</span><b>Set up your fight profile: game plan, camp and round timer</b></span>
+          <span aria-hidden style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><Icon.back /></span>
+        </button>
+      )}
       {data.combat && (
         <button className="card card-press fight-entry row-between" onClick={() => go('fight')} data-testid="fight-entry">
           <span className="stack" style={{ gap: 2, textAlign: 'left' }}>
