@@ -82,15 +82,15 @@ await step('count-ups land on real values; ring reflects sessions', async () => 
 await step('mood picker: indicator slides to the choice and saves the check-in', async () => {
   await page.getByTestId('mood-good').click();
   await page.waitForTimeout(500);
-  const [ind, opt] = await page.evaluate(() => [document.querySelector('.picker-ind').getBoundingClientRect().x, document.querySelector('[data-testid="mood-good"]').getBoundingClientRect().x]);
+  const [ind, opt] = await page.evaluate(() => [document.querySelector('[data-testid="mood-good"]').closest('.picker').querySelector('.picker-ind').getBoundingClientRect().x, document.querySelector('[data-testid="mood-good"]').getBoundingClientRect().x]);
   assert.ok(Math.abs(ind - opt) < 2, `indicator ${ind} vs option ${opt}`);
   assert.equal(await page.evaluate(() => globalThis.__kova.get().checkins.at(-1).mood), 4);
   await page.getByTestId('tile-checkin').getByText('Done').waitFor();
   await page.getByTestId('mood-low').click();
   await page.waitForTimeout(120);
-  const mid = await page.evaluate(() => document.querySelector('.picker-ind').getBoundingClientRect().x);
+  const mid = await page.evaluate(() => document.querySelector('[data-testid="mood-low"]').closest('.picker').querySelector('.picker-ind').getBoundingClientRect().x);
   await page.waitForTimeout(600);
-  const end = await page.evaluate(() => [document.querySelector('.picker-ind').getBoundingClientRect().x, document.querySelector('[data-testid="mood-low"]').getBoundingClientRect().x]);
+  const end = await page.evaluate(() => [document.querySelector('[data-testid="mood-low"]').closest('.picker').querySelector('.picker-ind').getBoundingClientRect().x, document.querySelector('[data-testid="mood-low"]').getBoundingClientRect().x]);
   assert.ok(Math.abs(mid - end[1]) > 2, 'indicator was moving (not a jump)');
   assert.ok(Math.abs(end[0] - end[1]) < 2);
 });

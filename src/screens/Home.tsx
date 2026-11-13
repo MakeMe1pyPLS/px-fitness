@@ -16,6 +16,8 @@ import { computeInsights } from '../lib/insights';
 import { budgetSummary } from '../lib/nutrition';
 import { withViewTransition } from '../lib/motion';
 import { BRAND } from '../brand';
+import { FidgetPad } from '../components/Fidget';
+import { buzz } from '../lib/fx';
 import type { AppData } from '../lib/types';
 
 // Original mood glyphs (simple faces; no emoji, consistent stroke with the icon set).
@@ -47,6 +49,8 @@ export function Home({ go }: { go: (r: Route) => void }) {
   const toast = useToast();
   const [sheet, setSheet] = useState<'checkin' | 'skip' | 'chat' | null>(null);
   const [chatMood, setChatMood] = useState<{ label: string; value: number } | undefined>();
+  const [focus, setFocus] = useState(() => { try { return localStorage.getItem('px:focus') === 'on'; } catch { return false; } });
+  const toggleFocus = () => { const v = !focus; setFocus(v); buzz(v ? [8, 30, 8] : 6); try { localStorage.setItem('px:focus', v ? 'on' : 'off'); } catch { /* ignore */ } };
   const [promo, setPromo] = useState(() => { try { return localStorage.getItem('px:promo') !== 'hidden'; } catch { return true; } });
   const cloudState = useCloud();
   const socialState = useSocial();
@@ -98,14 +102,18 @@ export function Home({ go }: { go: (r: Route) => void }) {
 
   let i = 0; // stagger index for Reveal
   return (
-    <div className="page dash">
+    <div className="page dash" data-focus={focus ? 'on' : 'off'}>
       <Reveal i={i++} className="dash-top">
         <div className="row" style={{ gap: 10 }}>
           <span className="px-avatar" aria-hidden>{BRAND.monogram}</span>
           <div><b>{BRAND.name}</b><div className="small muted" data-testid="home-status">{cloudState.session ? (cloudState.sync === 'error' ? 'Backup paused' : 'Backed up to your account') : 'Private on this device'}</div></div>
         </div>
-        <button className="btn btn-outline" onClick={() => go('you')}>{p.name ? p.name : 'Profile'}</button>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="focus-tog" aria-pressed={focus} onClick={toggleFocus} data-testid="focus-toggle" title="Focus view hides everything except what to do next"><i aria-hidden />Focus</button>
+          <button className="btn btn-outline" onClick={() => go('you')}>{p.name ? p.name : 'Profile'}</button>
+        </div>
       </Reveal>
+      {focus && <p className="focus-note focus-keep" data-testid="focus-note">Focus view: just the next thing. Tap Focus again to see everything.</p>}
 
       {promo && !coached && (
         <Reveal i={i++} className="promo" role="note">
@@ -214,6 +222,8 @@ export function Home({ go }: { go: (r: Route) => void }) {
           </div>
         </Reveal>
       ) : null}
+
+      <FidgetPad onStart={active ? () => withViewTransition(() => flushSync(() => go('workout'))) : !doneToday.length && !skippedToday ? () => start('short') : undefined} />
 
       <TrainTodayCard />
       <EventTodayCard />

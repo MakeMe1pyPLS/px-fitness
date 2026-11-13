@@ -2,6 +2,8 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import './styles/app.css';
+import './styles/hud.css';
+import { installFx } from './lib/fx';
 import { installMotionTokens } from './lib/motion';
 import { cloud } from './components/core';
 import { parseAuthHash } from './lib/cloud';
@@ -11,6 +13,7 @@ import { stashInvite } from './screens/Friends';
 import { stashEvent } from './screens/EventsPayments';
 
 installMotionTokens();
+installFx();
 
 // Email links (confirm sign-up, reset password) arrive as #access_token=…
 // Handle them before the hash router sees the URL, then land on the You tab.

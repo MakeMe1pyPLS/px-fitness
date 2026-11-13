@@ -1,3 +1,4 @@
+import { MiniPops } from '../components/Fidget';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, fmtClock, haptic, store, useData, useNow, useToast, type Route } from '../components/core';
 import { activeSession } from '../lib/planner';
@@ -87,6 +88,7 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
             </div>
           </div>
           <div className="progress-track" style={{ marginTop: 10 }}><div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, (remaining / rest.total) * 100))}%`, transition: 'width 1s linear' }} /></div>
+          {remaining > 0 && <MiniPops />}
         </div>
       ) : (
         <div className="finish-bar">
