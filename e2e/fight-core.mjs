@@ -29,11 +29,12 @@ await step('Combat sports is a training style in setup and shapes the plan', asy
   assert.ok(t[0].exercises.some((e) => e.exerciseId === 'heavy-bag' || e.exerciseId === 'shadow-boxing'));
 });
 await step('Today invites them to set up Fight', async () => {
-  assert.match(await page.getByTestId('fight-entry').innerText(), /Set up your fight profile/);
+  assert.match(await page.getByTestId('fight-entry').innerText(), /Learn to fight/);
 });
-await step('Fight tab is in the menu; the round timer works before setup', async () => {
+await step('Fight tab is in the menu with lessons; the practice timer works before setup', async () => {
   await page.locator('nav').getByText('Fight').click();
-  await page.getByTestId('fight-form').waitFor();
+  await page.getByTestId('lessons').waitFor();
+  await page.getByTestId('practice').locator('summary').click();
   await page.getByTestId('rt-rounds-1').click();
   await page.getByTestId('rt-work-60').click();
   await page.getByTestId('rt-start').click();

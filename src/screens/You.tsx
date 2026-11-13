@@ -88,8 +88,8 @@ export function You({ go }: { go: (r: Route) => void }) {
 
       <section className="card stack">
         <h2 className="eyebrow">Combat sports</h2>
-        <p className="small muted">{data.combat ? `${data.combat.sport}${data.combat.fightDate ? ' · fight on ' + data.combat.fightDate : ''}` : 'Box, kickbox, Muay Thai, MMA, wrestling or jiu-jitsu? Get a game plan by size and stance, a fight-camp countdown and a round timer.'}</p>
-        <button className="btn btn-outline" onClick={() => go('fight')} data-testid="open-fight">{data.combat ? 'Open fight camp' : 'Set up fight camp'}</button>
+        <p className="small muted">{data.combat ? `${data.combat.sport}${data.combat.fightDate ? ' · fight on ' + data.combat.fightDate : ''}` : 'Learn to fight step by step, and how to beat someone bigger, taller or stronger.'}</p>
+        <button className="btn btn-outline" onClick={() => go('fight')} data-testid="open-fight">Open Fight</button>
       </section>
 
       <section className="card stack">

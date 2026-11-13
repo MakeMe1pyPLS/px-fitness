@@ -407,6 +407,11 @@ export class Store {
   }
   removeUpcoming(id: string) { this.update((d) => ({ ...d, upcoming: d.upcoming.filter((x) => x.id !== id) })); }
 
+  /** Mark a fight lesson as practiced once more. */
+  practiceLesson(id: string) {
+    this.update((d) => { const cur = d.fightLearn?.[id]; return { ...d, fightLearn: { ...(d.fightLearn ?? {}), [id]: { count: (cur?.count ?? 0) + 1, last: toDateKey(new Date()) } } }; });
+  }
+
   /** Log rounds done on the Fight round timer as a completed workout. */
   logRounds(rounds: number, workSec: number, sport: string) {
     const now = new Date();

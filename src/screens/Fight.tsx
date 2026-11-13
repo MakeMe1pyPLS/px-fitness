@@ -1,37 +1,45 @@
-// Fight camp: combat profile, matchup plan by size and stance, camp phase
-// countdown, and a round timer that calls your game-plan cues each round.
+// Fight: learn to fight one lesson at a time, game plans for bigger/taller/
+// shorter opponents (by weight and height), fight-camp countdown, practice timer.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { store, useData, useToast, type Route } from '../components/core';
+import { Sheet, store, useData, useToast, type Route } from '../components/core';
+import { FightDiagram } from '../components/FightArt';
+import { LESSONS, FACING_LABEL, buildTips, facingFrom, lessonsFor, strategy, type Facing, type Lesson } from '../lib/fightLessons';
 import { SlidingPicker } from '../components/motion';
 import { buzz } from '../lib/fx';
 import { toDateKey, formatShortDate, plural } from '../lib/dates';
-import { SPORTS, STANCE_LABEL, campPhase, fmtClock, fmtDiff, fmtHeight, matchup, presetFor, type Fighter, type Opponent, type Sport, type Stance } from '../lib/combat';
+import { SPORTS, STANCE_LABEL, campPhase, fmtClock, fmtDiff, fmtHeight, matchup, presetFor, type Fighter, type Sport, type Stance } from '../lib/combat';
 
 const OPP_KEY = 'px:opponent';
 const IN = 2.54, LB = 2.20462;
 
-export function Fight({ go }: { go: (r: Route) => void }) {
+export function Fight({ go: _go }: { go: (r: Route) => void }) {
   const data = useData();
   const f = data.combat;
-  const [editing, setEditing] = useState(!f);
+  const [editing, setEditing] = useState(false);
+  const [lesson, setLesson] = useState<Lesson | null>(null);
   const imperial = (data.profile?.unit ?? 'lb') === 'lb';
+  const me = { sport: f?.sport, stance: f?.stance, heightCm: f?.heightCm ?? data.nutrition?.prefs?.heightCm, reachCm: f?.reachCm, weightKg: f?.weightKg ?? data.nutrition?.prefs?.weightKg };
+  const lessons = lessonsFor(f?.sport);
+  const open = (id: string) => { const l = LESSONS.find((x) => x.id === id); if (l) setLesson(l); };
   return (
     <div className="page stack-lg">
-      <header className="page-head"><h1 className="page-title display">Fight</h1></header>
-      {!f && <p className="muted" style={{ marginTop: 0 }}>Box, kickbox, Muay Thai, MMA, wrestle or roll? Set up your profile for a game plan and a fight-camp countdown. The round timer works right away.</p>}
-      {editing || !f
-        ? <>
-          <ProfileForm initial={f} imperial={imperial} heightCm={data.nutrition?.prefs?.heightCm} weightKg={data.nutrition?.prefs?.weightKg} onDone={() => setEditing(false)} onCancel={f ? () => setEditing(false) : undefined} />
-          {!f && <RoundTimer sport="Boxing" me={{ sport: 'Boxing' }} />}
-        </>
-        : <>
-          <ProfileSummary f={f} imperial={imperial} onEdit={() => setEditing(true)} />
-          {f.fightDate && <Camp f={f} />}
-          <MatchupCard me={f} imperial={imperial} />
-          <RoundTimer sport={f.sport} me={f} />
-        </>}
-      <p className="small muted">General fight principles to talk through with your coach. Making weight: plan it with your coach and a doctor, and don’t crash diet or dehydrate.</p>
+      <header className="page-head stack" style={{ gap: 4 }}>
+        <h1 className="page-title display">Fight</h1>
+        <p className="muted" style={{ margin: 0 }}>Learn to fight one skill at a time, and how to beat someone bigger, taller or stronger.</p>
+      </header>
+      {editing
+        ? <ProfileForm initial={f} imperial={imperial} heightCm={me.heightCm} weightKg={me.weightKg} onDone={() => setEditing(false)} onCancel={() => setEditing(false)} />
+        : <ProfileSummary f={f} me={me} imperial={imperial} onEdit={() => setEditing(true)} />}
+      <FacingCard me={me} imperial={imperial} onLesson={open} />
+      <LessonPath lessons={lessons} progress={data.fightLearn ?? {}} onOpen={setLesson} />
+      {f?.fightDate && <Camp f={f} />}
+      <details className="card practice" data-testid="practice">
+        <summary className="row-between"><span><span className="eyebrow">Practice timer</span><br /><span className="small muted">Rounds with a bell for drills and bag work</span></span><span aria-hidden>▾</span></summary>
+        <RoundTimer sport={f?.sport ?? 'Boxing'} me={f ?? { sport: 'Boxing' }} />
+      </details>
+      <p className="small muted">These are the standard basics taught in boxing, kickboxing and MMA gyms, for sport and fitness. Learn contact and sparring in a gym with a coach and proper gear. Outside the gym, the safest move is always to get away. Making weight: plan it with your coach and a doctor.</p>
+      {lesson && <LessonSheet lesson={lesson} me={me} done={data.fightLearn?.[lesson.id]?.count ?? 0} onClose={() => setLesson(null)} next={() => { const i = lessons.findIndex((x) => x.id === lesson.id); setLesson(lessons[i + 1] ?? null); }} />}
     </div>
   );
 }
@@ -94,12 +102,16 @@ function LenField({ id, label, cm, imperial, onChange, testid }: { id: string; l
   );
 }
 
-function ProfileSummary({ f, imperial, onEdit }: { f: Fighter; imperial: boolean; onEdit: () => void }) {
-  const bits = [f.sport, f.stance && STANCE_LABEL[f.stance].split(' (')[0], f.heightCm && fmtHeight(f.heightCm, imperial), f.reachCm && `${fmtHeight(f.reachCm, imperial)} reach`, f.weightKg && `${Math.round(imperial ? f.weightKg * LB : f.weightKg)} ${imperial ? 'lb' : 'kg'}`].filter(Boolean);
+function ProfileSummary({ f, me, imperial, onEdit }: { f?: Fighter; me: { heightCm?: number; weightKg?: number }; imperial: boolean; onEdit: () => void }) {
+  const bits = [f?.sport, f?.stance && STANCE_LABEL[f.stance].split(' (')[0], me.heightCm && fmtHeight(me.heightCm, imperial), f?.reachCm && `${fmtHeight(f.reachCm, imperial)} reach`, me.weightKg && `${Math.round(imperial ? me.weightKg * LB : me.weightKg)} ${imperial ? 'lb' : 'kg'}`].filter(Boolean);
+  const tips = buildTips(me);
   return (
-    <section className="card row-between" data-testid="fight-profile">
-      <div><h2 className="eyebrow">You</h2><p className="h3" style={{ margin: 0 }}>{bits.join(' · ')}</p></div>
-      <button className="btn btn-outline btn-sm" onClick={onEdit} data-testid="ft-edit">Edit</button>
+    <section className="card stack" data-testid="fight-profile">
+      <div className="row-between">
+        <div><h2 className="eyebrow">You</h2><p className="h3" style={{ margin: 0 }}>{bits.length ? bits.join(' · ') : 'Add your style and size for tips made for you'}</p></div>
+        <button className="btn btn-outline btn-sm" onClick={onEdit} data-testid="ft-edit">{f ? 'Edit' : 'Set up'}</button>
+      </div>
+      {tips && <div data-testid="build-tips"><b className="small">Your build: {tips.title}</b><ul className="tips">{tips.tips.map((t) => <li key={t}>{t}</li>)}</ul></div>}
     </section>
   );
 }
@@ -124,35 +136,127 @@ function Camp({ f }: { f: Fighter }) {
   );
 }
 
-// ── Matchup ───────────────────────────────────────────────────────────────
-function MatchupCard({ me, imperial }: { me: Fighter; imperial: boolean }) {
-  const [opp, setOpp] = useState<Opponent>(() => { try { return JSON.parse(localStorage.getItem(OPP_KEY) ?? '{}'); } catch { return {}; } });
-  const upd = (o: Opponent) => { setOpp(o); try { localStorage.setItem(OPP_KEY, JSON.stringify(o)); } catch { /* ignore */ } };
-  const m = useMemo(() => matchup(me, opp), [me, opp]);
-  const known = !!(opp.heightCm || opp.reachCm);
-  const sizeLine = m.reachDiffCm !== null && Math.abs(m.reachDiffCm) >= 1
-    ? `${m.reachDiffCm > 0 ? 'Longer' : 'Shorter'} reach by ${fmtDiff(m.reachDiffCm, imperial)}${m.reachEstimated ? ' (estimated from height)' : ''}`
-    : m.heightDiffCm !== null ? (Math.abs(m.heightDiffCm) < 2 ? 'About the same height' : `${m.heightDiffCm > 0 ? 'Taller' : 'Shorter'} by ${fmtDiff(m.heightDiffCm, imperial)}`) : null;
+// ── Who are you facing? ───────────────────────────────────────────────────
+interface Them { heightCm?: number; weightKg?: number; reachCm?: number; stance?: Stance; pick?: Facing }
+function FacingCard({ me, imperial, onLesson }: { me: { sport?: Sport; stance?: Stance; heightCm?: number; weightKg?: number; reachCm?: number }; imperial: boolean; onLesson: (id: string) => void }) {
+  const [t, setT] = useState<Them>(() => { try { return JSON.parse(localStorage.getItem(OPP_KEY) ?? '{}'); } catch { return {}; } });
+  const upd = (o: Them) => { setT(o); try { localStorage.setItem(OPP_KEY, JSON.stringify(o)); } catch { /* ignore */ } };
+  const [nums, setNums] = useState(!!(t.heightCm || t.weightKg));
+  const auto = facingFrom(me, t);
+  const facing: Facing | null = t.pick ?? auto;
+  const st = facing ? strategy(facing, me.sport) : null;
+  const stance = useMemo(() => me.sport && me.stance && t.stance ? matchup({ sport: me.sport, stance: me.stance }, { stance: t.stance }).stance : null, [me.sport, me.stance, t.stance]);
+  const diffs: string[] = [];
+  if (me.weightKg && t.weightKg && Math.abs(t.weightKg - me.weightKg) >= 1) { const d = t.weightKg - me.weightKg; diffs.push(`${Math.round(Math.abs(imperial ? d * LB : d))} ${imperial ? 'lb' : 'kg'} ${d > 0 ? 'heavier' : 'lighter'}`); }
+  if (me.heightCm && t.heightCm && Math.abs(t.heightCm - me.heightCm) >= 2) { const d = t.heightCm - me.heightCm; diffs.push(`${fmtDiff(d, imperial)} ${d > 0 ? 'taller' : 'shorter'}`); }
   return (
-    <section className="card stack" data-testid="matchup">
-      <h2 className="eyebrow">Game plan vs your opponent</h2>
-      {!me.heightCm && <p className="small muted">Add your height to your profile to compare sizes.</p>}
-      <div className="row">
-        <LenField id="op-h" label="Their height" cm={opp.heightCm} imperial={imperial} onChange={(v) => upd({ ...opp, heightCm: v })} testid="op-height" />
-        <LenField id="op-r" label="Their reach" cm={opp.reachCm} imperial={imperial} onChange={(v) => upd({ ...opp, reachCm: v })} testid="op-reach" />
+    <section className="card stack" data-testid="facing">
+      <h2 className="eyebrow">Who are you up against?</h2>
+      <div className="chips" role="group" aria-label="Opponent">
+        {(Object.keys(FACING_LABEL) as Facing[]).map((k) => <button key={k} type="button" className="chip" aria-pressed={facing === k} onClick={() => upd({ ...t, pick: t.pick === k ? undefined : k })} data-testid={`facing-${k}`}>{FACING_LABEL[k]}</button>)}
       </div>
-      <div className="chips" role="group" aria-label="Their stance">{(['orthodox', 'southpaw'] as Stance[]).map((s) => <button key={s} type="button" className="chip" aria-pressed={opp.stance === s} onClick={() => upd({ ...opp, stance: opp.stance === s ? undefined : s })} data-testid={`op-stance-${s}`}>{s === 'orthodox' ? 'They’re orthodox' : 'They’re southpaw'}</button>)}</div>
-      {known && me.heightCm ? (
-        <div className="stack plan" data-testid="plan" data-size={m.size}>
-          {sizeLine && <p className="small muted" style={{ margin: 0 }} data-testid="size-line">{sizeLine}</p>}
-          <p className="h2" style={{ margin: 0 }} data-testid="plan-head">{m.headline}</p>
-          <p style={{ margin: 0 }}>{m.summary}</p>
-          <div><b className="small">Do this</b><ul className="tips">{m.doThis.map((t) => <li key={t}>{t}</li>)}</ul></div>
-          <div><b className="small">Avoid</b><ul className="tips tips-avoid">{m.avoid.map((t) => <li key={t}>{t}</li>)}</ul></div>
-          {m.stance && <div data-testid="stance-plan"><b className="small">{m.stance.title}</b><ul className="tips">{m.stance.tips.map((t) => <li key={t}>{t}</li>)}</ul></div>}
+      <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setNums(!nums)} aria-expanded={nums} data-testid="facing-nums">{nums ? 'Hide their numbers' : 'Know their height or weight? Enter it'}</button>
+      {nums && (
+        <div className="stack" style={{ gap: 10 }}>
+          <div className="row">
+            <LenField id="op-h" label="Their height" cm={t.heightCm} imperial={imperial} onChange={(v) => upd({ ...t, heightCm: v, pick: undefined })} testid="op-height" />
+            <div className="field grow"><label className="label" htmlFor="op-w">Their weight ({imperial ? 'lb' : 'kg'})</label><input id="op-w" className="input" type="number" inputMode="decimal" value={t.weightKg ? Math.round(imperial ? t.weightKg * LB : t.weightKg) : ''} onChange={(e) => upd({ ...t, weightKg: e.target.value ? Number(e.target.value) / (imperial ? LB : 1) : undefined, pick: undefined })} data-testid="op-weight" /></div>
+          </div>
+          {(!me.heightCm || !me.weightKg) && <p className="small muted" style={{ margin: 0 }}>Add your own height and weight above to compare.</p>}
+          <div className="chips" role="group" aria-label="Their stance">{(['orthodox', 'southpaw'] as Stance[]).map((s) => <button key={s} type="button" className="chip" aria-pressed={t.stance === s} onClick={() => upd({ ...t, stance: t.stance === s ? undefined : s })} data-testid={`op-stance-${s}`}>{s === 'orthodox' ? 'They’re orthodox' : 'They’re southpaw'}</button>)}</div>
         </div>
-      ) : <p className="small muted" style={{ margin: 0 }}>Enter their height (and reach if you know it) to get a plan.</p>}
+      )}
+      {st ? (
+        <div className="stack plan" data-testid="plan" data-facing={st.facing}>
+          {diffs.length > 0 && <p className="small muted" style={{ margin: 0 }} data-testid="size-line">They’re {diffs.join(' and ')}</p>}
+          <p className="h2" style={{ margin: 0 }} data-testid="plan-head">{st.headline}</p>
+          <p style={{ margin: 0 }}>{st.summary}</p>
+          <div><b className="small">Do this</b><ul className="tips">{st.doThis.map((x) => <li key={x}>{x}</li>)}</ul></div>
+          <div><b className="small">Avoid</b><ul className="tips tips-avoid">{st.avoid.map((x) => <li key={x}>{x}</li>)}</ul></div>
+          {stance && <div data-testid="stance-plan"><b className="small">{stance.title}</b><ul className="tips">{stance.tips.map((x) => <li key={x}>{x}</li>)}</ul></div>}
+          <div><b className="small">Learn these first</b>
+            <div className="chips" style={{ marginTop: 6 }}>{st.learnFirst.map((id) => { const l = LESSONS.find((x) => x.id === id); return l ? <button key={id} className="chip" onClick={() => onLesson(id)} data-testid={`learn-${id}`}>{l.title}</button> : null; })}</div>
+          </div>
+        </div>
+      ) : <p className="small muted" style={{ margin: 0 }}>Pick one to get a game plan.</p>}
     </section>
+  );
+}
+
+// ── Lesson path ─────────────────────────────────────────────────────────
+function LessonPath({ lessons, progress, onOpen }: { lessons: Lesson[]; progress: Record<string, { count: number }>; onOpen: (l: Lesson) => void }) {
+  const done = lessons.filter((l) => progress[l.id]?.count).length;
+  const next = lessons.find((l) => !progress[l.id]?.count);
+  const units = [...new Set(lessons.map((l) => l.unit))];
+  return (
+    <section className="card stack" data-testid="lessons">
+      <div className="row-between"><h2 className="eyebrow">Learn to fight</h2><b className="small tnum" data-testid="lessons-done">{done} of {lessons.length}</b></div>
+      <div className="progress-track"><div className="progress-fill" style={{ width: `${(done / lessons.length) * 100}%` }} /></div>
+      {next && <button className="btn btn-primary btn-block" onClick={() => onOpen(next)} data-testid="lesson-next">{done ? 'Next lesson' : 'Start lesson 1'}: {next.title}</button>}
+      {units.map((u) => (
+        <div key={u} className="stack" style={{ gap: 6 }}>
+          <span className="small muted" style={{ fontWeight: 700 }}>{u}</span>
+          {lessons.filter((l) => l.unit === u).map((l) => {
+            const n = lessons.indexOf(l) + 1, c = progress[l.id]?.count ?? 0;
+            return (
+              <button key={l.id} className={'lesson-row' + (c ? ' done' : '') + (next?.id === l.id ? ' next' : '')} onClick={() => onOpen(l)} data-testid={`lesson-${l.id}`}>
+                <span className="lesson-n tnum" aria-hidden>{c ? '✓' : n}</span>
+                <span className="grow" style={{ textAlign: 'left' }}>{l.title}</span>
+                <span className="small muted">{c ? `Practiced ${plural(c, 'time')}` : next?.id === l.id ? 'Up next' : ''}</span>
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function LessonSheet({ lesson: l, me, done, onClose, next }: { lesson: Lesson; me: { sport?: Sport; heightCm?: number; weightKg?: number }; done: number; onClose: () => void; next: () => void }) {
+  const toast = useToast();
+  const [drill, setDrill] = useState(false);
+  const tips = buildTips(me);
+  return (
+    <Sheet title={l.title} onClose={onClose} label={l.title}>
+      <div className="stack" data-testid="lesson-sheet">
+        <p className="small muted" style={{ margin: 0 }}>{l.unit}</p>
+        <p style={{ margin: 0 }}>{l.why}</p>
+        <FightDiagram kind={l.diagram} />
+        <div><b className="small">How to do it</b><ol className="steps-list">{l.steps.map((x) => <li key={x}>{x}</li>)}</ol></div>
+        <div><b className="small">Common mistakes</b><ul className="tips tips-avoid">{l.mistakes.map((x) => <li key={x}>{x}</li>)}</ul></div>
+        {l.id === 'stance' && me.sport && <p className="small muted" style={{ margin: 0 }}>Left-handed or more comfortable the other way? Try southpaw: right foot forward, and mirror everything.</p>}
+        {tips && ['stance', 'footwork', 'angles', 'clinch'].includes(l.id) && <p className="small" style={{ margin: 0 }}><b>For your build ({tips.title.toLowerCase()}):</b> {tips.tips[0]}.</p>}
+        <div className="card drill-box stack" style={{ gap: 8 }}>
+          <b className="small">Drill · {plural(l.drill.rounds, 'round')} of {l.drill.sec >= 60 ? `${l.drill.sec / 60} min` : `${l.drill.sec} s`}</b>
+          <p className="small" style={{ margin: 0 }}>{l.drill.text}</p>
+          {drill ? <DrillTimer rounds={l.drill.rounds} sec={l.drill.sec} onDone={() => setDrill(false)} /> : <button className="btn btn-outline" onClick={() => setDrill(true)} data-testid="drill-start">Start drill</button>}
+        </div>
+        <button className="btn btn-primary btn-block" onClick={() => { store.practiceLesson(l.id); buzz([8, 40, 12]); toast(done ? 'Logged another practice' : 'Nice. Lesson done'); next(); }} data-testid="lesson-done">{done ? 'I practiced it again' : 'I practiced this'}</button>
+      </div>
+    </Sheet>
+  );
+}
+
+/** A small round clock inside a lesson. */
+function DrillTimer({ rounds, sec, onDone }: { rounds: number; sec: number; onDone: () => void }) {
+  const [r, setR] = useState(1);
+  const [rest, setRest] = useState(false);
+  const [left, setLeft] = useState(sec);
+  useEffect(() => {
+    const id = setInterval(() => setLeft((x) => x - 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  useEffect(() => {
+    if (left > 0) return;
+    if (!rest && r >= rounds) { buzz([200, 100, 200]); onDone(); return; }
+    buzz(rest ? 60 : [120, 80, 120]);
+    if (rest) { setRest(false); setR(r + 1); setLeft(sec); } else { setRest(true); setLeft(30); }
+  }, [left]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="row-between" data-testid="drill-live">
+      <span><b className="tnum" style={{ fontSize: 28 }}>{fmtClock(left)}</b><br /><span className="small muted">{rest ? 'Rest' : `Round ${r} of ${rounds}`}</span></span>
+      <button className="btn btn-outline btn-sm" onClick={onDone}>Stop</button>
+    </div>
   );
 }
 

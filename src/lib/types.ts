@@ -148,6 +148,7 @@ export interface AppData {
   checkinMemory: { date: string; text: string }[]; // short things the user told the check-in bot
   upcoming: import('./upcoming').UpcomingEvent[]; // fights, travel, busy stretches the plan flexes around
   combat?: import('./combat').Fighter; // combat sports profile (opt-in)
+  fightLearn?: Record<string, { count: number; last: string }>; // fight lessons practiced
   skills: Record<string, { level: number; history: { level: number; date: string }[] }>; // PX Boot Camp levels
 }
 

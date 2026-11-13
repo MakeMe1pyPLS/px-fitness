@@ -47,3 +47,23 @@ test('round presets and formatting', () => {
   assert.equal(fmtClock(185), '3:05'); assert.equal(fmtClock(-3), '0:00');
   assert.equal(fmtHeight(183, true), '6′0″'); assert.equal(fmtDiff(-12.7, true), '5 in');
 });
+
+import { LESSONS, lessonsFor, strategy, facingFrom, buildTips } from '../src/lib/fightLessons';
+test('fight lessons: path, kicks only for kicking sports, plans link to real lessons', () => {
+  assert.equal(lessonsFor('Boxing').length, 13);
+  assert.equal(lessonsFor('Muay Thai').length, 16);
+  const ids = new Set(LESSONS.map((l) => l.id));
+  for (const f of ['bigger', 'taller', 'shorter', 'similar'] as const) for (const id of strategy(f, 'MMA').learnFirst) assert.ok(ids.has(id), id);
+  // units stay together so the numbered path reads in order
+  const units = lessonsFor('MMA').map((l) => l.unit); assert.deepEqual(units, [...units].sort((a, b) => units.indexOf(a) - units.indexOf(b)));
+});
+test('who you are facing: weight first, then reach/height', () => {
+  assert.equal(facingFrom({ weightKg: 70, heightCm: 180 }, { weightKg: 85, heightCm: 175 }), 'bigger');
+  assert.equal(facingFrom({ weightKg: 70, heightCm: 175 }, { weightKg: 72, heightCm: 188 }), 'taller');
+  assert.equal(facingFrom({ weightKg: 80, heightCm: 185 }, { weightKg: 79, heightCm: 172 }), 'shorter');
+  assert.equal(facingFrom({ weightKg: 80 }, { weightKg: 65 }), 'shorter');
+  assert.equal(facingFrom({ weightKg: 80, heightCm: 180 }, { weightKg: 81, heightCm: 181 }), 'similar');
+  assert.equal(facingFrom({}, {}), null);
+  assert.equal(buildTips({ heightCm: 182.9, weightKg: 77 })!.title, 'Tall and rangy');
+  assert.equal(buildTips({ heightCm: 168, weightKg: 62 })!.title, 'Shorter and compact');
+});

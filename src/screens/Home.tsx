@@ -228,7 +228,7 @@ export function Home({ go }: { go: (r: Route) => void }) {
 
       {!data.combat && p.disciplines.includes('combat') && (
         <button className="card card-press fight-entry row-between" onClick={() => go('fight')} data-testid="fight-entry">
-          <span className="stack" style={{ gap: 2, textAlign: 'left' }}><span className="eyebrow">Fight</span><b>Set up your fight profile: game plan, camp and round timer</b></span>
+          <span className="stack" style={{ gap: 2, textAlign: 'left' }}><span className="eyebrow">Fight</span><b>Learn to fight: step-by-step lessons and game plans</b></span>
           <span aria-hidden style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><Icon.back /></span>
         </button>
       )}
@@ -236,7 +236,7 @@ export function Home({ go }: { go: (r: Route) => void }) {
         <button className="card card-press fight-entry row-between" onClick={() => go('fight')} data-testid="fight-entry">
           <span className="stack" style={{ gap: 2, textAlign: 'left' }}>
             <span className="eyebrow">Fight camp</span>
-            <b>{data.combat.fightDate ? (() => { const ph = campPhase(data.combat.fightDate, toDateKey(new Date())); return ph.days > 0 ? `${ph.name} · ${plural(ph.days, 'day')} to ${data.combat.fightName || 'fight'}` : ph.name; })() : `${data.combat.sport}: game plan & round timer`}</b>
+            <b>{data.combat.fightDate ? (() => { const ph = campPhase(data.combat.fightDate, toDateKey(new Date())); return ph.days > 0 ? `${ph.name} · ${plural(ph.days, 'day')} to ${data.combat.fightName || 'fight'}` : ph.name; })() : `${data.combat.sport}: lessons & game plan`}</b>
           </span>
           <span aria-hidden style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><Icon.back /></span>
         </button>

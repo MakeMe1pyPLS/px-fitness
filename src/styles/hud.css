@@ -302,3 +302,17 @@ body::after {
 .rt-time { font-size: 64px; font-weight: 900; line-height: 1; color: #fff; }
 .rt-cue { font-weight: 800; color: #ff8a55; font-size: var(--t-md, 1.05rem); }
 .rt[data-phase='ready'] .rt-time { color: #ff8a55; }
+.lesson-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 12px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); color: var(--ink); font-weight: 700; transition: border-color 200ms, background 200ms; }
+.lesson-row:active { transform: scale(0.98); }
+.lesson-row.next { border-color: rgba(255, 90, 31, 0.7); background: rgba(255, 90, 31, 0.08); }
+.lesson-n { width: 30px; height: 30px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 13px; background: rgba(255, 255, 255, 0.07); color: #cfc8c0; }
+.lesson-row.done .lesson-n { background: var(--ember); color: #12090a; }
+.lesson-row.next .lesson-n { border: 1.5px solid var(--ember); background: transparent; color: #ff8a55; }
+.steps-list { margin: 6px 0 0; padding-left: 1.3em; display: grid; gap: 8px; }
+.steps-list li::marker { color: var(--ember); font-weight: 800; }
+.fdiag { margin: 0; display: grid; gap: 6px; }
+.fdiag svg { width: 100%; height: auto; background: #161616; border: 1px solid var(--line); border-radius: 14px; }
+.practice > summary { list-style: none; cursor: pointer; }
+.practice > summary::-webkit-details-marker { display: none; }
+.practice[open] > summary { margin-bottom: var(--s-4); }
+.drill-box { background: rgba(255, 255, 255, 0.03); padding: var(--s-4); }
