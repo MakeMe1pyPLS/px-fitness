@@ -338,3 +338,4 @@ body::after {
 .sheet-x:active { transform: scale(0.9); }
 .sheet .grabber { width: 44px; height: 5px; margin: 6px auto var(--s-4); background: rgba(255, 255, 255, 0.25); }
 .sheet-handle { min-height: 40px; }
+.coach-flag { white-space: nowrap; }

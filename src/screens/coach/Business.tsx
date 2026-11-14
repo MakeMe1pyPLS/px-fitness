@@ -11,8 +11,11 @@ const usd = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigi
 function Head({ title, sub }: { title: string; sub?: string }) {
   return (
     <header className="page-head">
-      <div>
-        <div className="row" style={{ gap: 8 }}><span className="eyebrow">Owner workspace</span><span className="coach-flag">Coach view</span></div>
+      <div style={{ width: '100%' }}>
+        <div className="row-between" style={{ gap: 8 }}>
+          <div className="row" style={{ gap: 8 }}><span className="eyebrow">Owner workspace</span><span className="coach-flag">Coach view</span></div>
+          <button className="btn btn-outline btn-sm" onClick={() => { store.setCoach({ viewAsCoach: false }); location.hash = '#home'; }} data-testid="switch-to-app">Switch to app</button>
+        </div>
         <h1 className="page-title display">{title}</h1>
         {sub && <p className="muted small" style={{ marginTop: 4 }}>{sub}</p>}
       </div>
