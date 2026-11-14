@@ -1,3 +1,4 @@
+import { VideoDemo } from '../components/VideoDemo';
 import { SkillLevels } from '../components/SkillLevels';
 import React, { useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, store, useData, useToast, type Route } from '../components/core';
@@ -121,6 +122,7 @@ function ExerciseSheet({ data, id, onClose }: { data: AppData; id: string; onClo
           {ex.metric === 'time' ? 'Longest hold per session, in seconds.' : !weighted ? 'Most reps in a single set per session.' : mode === 'top' ? `Heaviest completed set per session (${unit}).` : `Estimated with the Epley formula from sets of 12 reps or fewer. It’s an estimate, not a tested max.`}
         </p>
         <p className="small">{ex.cue}</p>
+        <VideoDemo id={ex.id} title={ex.name} />
       </div>
     </Sheet>
   );

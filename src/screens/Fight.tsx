@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Sheet, store, useData, useToast, type Route } from '../components/core';
 import { FightDiagram } from '../components/FightArt';
+import { VideoDemo } from '../components/VideoDemo';
 import { LESSONS, FACING_LABEL, buildTips, facingFrom, lessonsFor, strategy, type Facing, type Lesson } from '../lib/fightLessons';
 import { SlidingPicker } from '../components/motion';
 import { buzz } from '../lib/fx';
@@ -221,6 +222,7 @@ function LessonSheet({ lesson: l, me, done, onClose, next }: { lesson: Lesson; m
       <div className="stack" data-testid="lesson-sheet">
         <p className="small muted" style={{ margin: 0 }}>{l.unit}</p>
         <p style={{ margin: 0 }}>{l.why}</p>
+        <VideoDemo id={l.id} title={l.title} />
         <FightDiagram kind={l.diagram} />
         <div><b className="small">How to do it</b><ol className="steps-list">{l.steps.map((x) => <li key={x}>{x}</li>)}</ol></div>
         <div><b className="small">Common mistakes</b><ul className="tips tips-avoid">{l.mistakes.map((x) => <li key={x}>{x}</li>)}</ul></div>

@@ -316,3 +316,16 @@ body::after {
 .practice > summary::-webkit-details-marker { display: none; }
 .practice[open] > summary { margin-bottom: var(--s-4); }
 .drill-box { background: rgba(255, 255, 255, 0.03); padding: var(--s-4); }
+
+/* ── Demo videos ─────────────────────────────────────────────────────────── */
+.vdemo { width: 100%; }
+.vdemo-frame, .vdemo-poster { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 14px; background: #0f0f0f; }
+.vdemo.vertical .vdemo-frame, .vdemo.vertical .vdemo-poster { aspect-ratio: 9 / 16; max-height: 70vh; width: auto; margin: 0 auto; max-width: 100%; }
+.vdemo.vertical[data-kind='tiktok'] .vdemo-frame { aspect-ratio: 9 / 17; }
+.vdemo-poster { position: relative; overflow: hidden; background-size: cover; background-position: center; display: grid; place-items: center; color: #fff; border: 1px solid var(--line); }
+.vdemo-poster::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.55)); }
+.vdemo-play { position: relative; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background-color: #ff5a1f; background-image: var(--ember-grad); color: #12090a; box-shadow: 0 10px 30px -10px rgba(255, 90, 31, 0.7); transition: transform 250ms var(--spring-bouncy, ease-out); }
+.vdemo-poster:active .vdemo-play { transform: scale(0.9); }
+.vdemo-label { position: absolute; left: 12px; bottom: 10px; font-weight: 800; font-size: var(--t-sm); }
+.vdemo-empty { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; border: 1px dashed rgba(255, 255, 255, 0.14); border-radius: 14px; }
+.icon-btn.has-video { color: var(--ember); }

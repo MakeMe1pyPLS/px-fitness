@@ -1,3 +1,4 @@
+import { VideoDemo, hasVideo } from '../components/VideoDemo';
 import { MiniPops } from '../components/Fidget';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, fmtClock, haptic, store, useData, useNow, useToast, type Route } from '../components/core';
@@ -167,11 +168,11 @@ function ExerciseCard({ data, session, exIdx, onSetDone, onSwap }: { data: AppDa
           <div className="small muted">{e.sets.length} × {e.target}{e.swappedFrom ? ` · swapped from ${getExercise(e.swappedFrom, data.customExercises)?.name}` : ''}</div>
         </div>
         <div className="row" style={{ gap: 0 }}>
-          <button className="icon-btn" aria-label={`How to do ${ex.name}`} aria-expanded={showCue} onClick={() => setShowCue(!showCue)} style={{ fontWeight: 800 }}>?</button>
+          <button className={'icon-btn' + (hasVideo(ex.id) ? ' has-video' : '')} aria-label={`How to do ${ex.name}${hasVideo(ex.id) ? ', with video' : ''}`} aria-expanded={showCue} onClick={() => setShowCue(!showCue)} style={{ fontWeight: 800 }} data-testid={`how-${exIdx}`}>{hasVideo(ex.id) ? '▶' : '?'}</button>
           <button className="icon-btn" aria-label={`Swap ${ex.name}`} onClick={onSwap} data-testid={`swap-${exIdx}`}><Icon.swap /></button>
         </div>
       </div>
-      {showCue && <p className="ex-cue" style={{ margin: '8px 0 4px' }}>{ex.cue}</p>}
+      {showCue && <div className="stack" style={{ gap: 8, margin: '8px 0 4px' }}><p className="ex-cue" style={{ margin: 0 }}>{ex.cue}</p><VideoDemo id={ex.id} title={ex.name} /></div>}
 
       <div className={'set-grid' + (hasWeight ? '' : ' no-weight')} style={{ marginTop: 12 }}>
         <span className="set-head" style={{ textAlign: 'center' }}>Set</span>
