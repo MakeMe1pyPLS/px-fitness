@@ -1,7 +1,7 @@
-import { DEMO, realCloudConfigured } from '../config';
+import { DEMO, realCloudConfigured, cloudEnabled } from '../config';
 import { startDemo, exitDemo } from '../lib/demo';
 import React, { useState } from 'react';
-import { ConfirmDialog, Icon, Sheet, Switch, store, useCloud, useData, useToast, type Route } from '../components/core';
+import { ConfirmDialog, Icon, Sheet, Switch, store, useCloud, useData, useSocial, useToast, type Route } from '../components/core';
 import { RULE_LABELS } from '../lib/insights';
 import { estimateMinutes } from '../lib/planner';
 import { getExercise } from '../lib/exercises';
@@ -17,6 +17,9 @@ const EQUIP: Equipment[] = ['dumbbells', 'barbell', 'machines', 'kettlebell', 'b
 
 export function You({ go }: { go: (r: Route) => void }) {
   const data = useData();
+  const socialState = useSocial();
+  // The desk is for PX staff. Before accounts exist it's an open preview.
+  const canDesk = !cloudEnabled() || !!socialState.role;
   const p = data.profile!;
   const toast = useToast();
   const cloudSession = useCloud().session;
@@ -82,7 +85,7 @@ export function You({ go }: { go: (r: Route) => void }) {
       <section className="card stack">
         <h2 className="eyebrow">Coaching</h2>
         <button className="btn btn-outline" onClick={() => go('coach')} data-testid="open-coaching">Coaching options & booking</button>
-        <button className="btn btn-ghost" onClick={() => { store.setCoach({ viewAsCoach: true }); go('biz'); }} data-testid="enter-coach">Open the coach’s business desk</button>
+        {canDesk && <button className="btn btn-ghost" onClick={() => { store.setCoach({ viewAsCoach: true }); go('biz'); }} data-testid="enter-coach">Open the coach’s business desk</button>}
         <p className="small muted">For the coach: private notes on clients, schedule and payment records, kept on this device only. Online clients, in-app payments and PX Saturdays are under Friends → Coach. Anyone using this device can open the desk, so use it on the coach’s own phone.</p>
       </section>
 
@@ -121,7 +124,7 @@ export function You({ go }: { go: (r: Route) => void }) {
         <h2 className="eyebrow">Demo</h2>
         {DEMO
           ? <><p className="small muted">You’re previewing accounts, Friends, coaching, payments and PX Saturdays with sample people. Nothing leaves this phone and no money moves.</p><button className="btn btn-outline" onClick={exitDemo} data-testid="demo-off">Exit preview</button></>
-          : !realCloudConfigured && <><p className="small muted">Preview the Friends tab, coach & client tools, in-app coaching payments and PX Saturdays with sample people. Runs only on this phone; nothing is real, online or charged. Your own data stays as it is.</p><button className="btn btn-primary" onClick={startDemo} data-testid="demo-on">Preview Friends & coaching</button></>}
+          : !realCloudConfigured && <><p className="small muted">Preview the Friends tab, coach & client tools, in-app coaching payments and PX Saturdays with sample people. Runs only on this phone; nothing is real, online or charged. Your own data stays as it is.</p><div className="row" style={{ flexWrap: 'wrap' }}><button className="btn btn-primary" onClick={() => startDemo(false)} data-testid="demo-on">Preview as a member</button><button className="btn btn-outline" onClick={() => startDemo(true)} data-testid="demo-coach">Preview as the coach</button></div></>}
         {data.settings.sampleData
           ? <button className="btn btn-outline" onClick={() => setConfirm('clearSample')}>Clear sample data</button>
           : <><p className="small muted">Load 7 weeks of made-up training to preview progress charts and insights. It replaces what’s here, and a banner marks it as sample data.</p><button className="btn btn-outline" onClick={() => setConfirm('sample')} data-testid="load-sample">Load sample data</button></>}

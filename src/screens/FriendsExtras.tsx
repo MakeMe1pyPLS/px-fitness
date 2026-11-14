@@ -233,7 +233,7 @@ export function CoachSection() {
       <h2 className="eyebrow">Coach</h2>
       {coaches.length === 0 ? (
         <>
-          <p className="small muted">Working with a coach on PX-Fitness? Connect with their code so they can see your workouts and leave you notes.</p>
+          <p className="small muted">Train with a PX coach: they see your workouts, leave you notes and you can pay for sessions here.</p>
           <button className="btn btn-outline" onClick={() => setConnect(true)} data-testid="connect-coach">Connect my coach</button>
         </>
       ) : coaches.map((l) => (
@@ -256,14 +256,20 @@ export function CoachSection() {
         </div>
       ))}
 
-      <div className="setting-row"><div><b>I’m a coach</b><p className="small muted">Clients can connect to you with your friend code.</p></div><Switch label="Coach mode" checked={!!me.is_coach} onChange={(v) => social.setCoachMode(v).then(() => toast(v ? 'Coach mode on' : 'Coach mode off')).catch((e) => toast(errMsg(e)))} /></div>
-      {me.is_coach && (
+      {s.role && (
+        <div className="staff-badge" data-testid="staff-badge">
+          <b>{s.role === 'owner' ? 'You run PX coaching' : 'You’re a PX coach'}</b>
+          <p className="small muted" style={{ margin: 0 }}>Members find you in the coach list, or connect with your code <b className="tnum">{formatCode(me.friend_code ?? '')}</b>.</p>
+        </div>
+      )}
+      {s.role && (
         <div className="stack" style={{ gap: 6 }} data-testid="my-clients">
           <b className="small">Your clients · {clients.length}</b>
-          {clients.length === 0 && <p className="small muted">Share your code <b className="tnum">{formatCode(me.friend_code ?? '')}</b> with clients so they can connect.</p>}
+          {clients.length === 0 && <p className="small muted">No clients yet. Share your code <b className="tnum">{formatCode(me.friend_code ?? '')}</b> so they can connect.</p>}
           {clients.map((l) => <button key={l.other_id} className="friend-row friend-btn" onClick={() => setOpen(l)} data-testid="client"><b className="grow" style={{ textAlign: 'left' }}>{l.display_name}</b><span className="small muted">{l.client_shared.recent?.[0] ? `Last: ${formatShortDate(l.client_shared.recent[0].date)}` : 'No workouts yet'}</span></button>)}
         </div>
       )}
+      {s.role === 'owner' && <TeamCard />}
       {connect && <ConnectCoachSheet onClose={() => setConnect(false)} />}
       {drop && <ConfirmDialog title={`Disconnect from ${drop.display_name ?? 'your coach'}?`} body="They’ll stop seeing your workouts and check-ins. Past payments and notes aren’t affected." confirmLabel="Disconnect" onCancel={() => setDrop(null)} onConfirm={() => { const l = drop; setDrop(null); social.endCoachLink(l.other_id, 'client').then(() => toast('Coach disconnected')).catch((e) => toast(errMsg(e))); }} />}
       {open && <ClientSheet link={s.coachLinks.find((x) => x.other_id === open.other_id && x.i_am === 'coach') ?? open} onClose={() => setOpen(null)} />}
@@ -273,24 +279,70 @@ export function CoachSection() {
 
 function ConnectCoachSheet({ onClose }: { onClose: () => void }) {
   const toast = useToast();
+  const st = useSocial();
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const list = st.coaches.filter((c) => c.user_id !== st.me?.user_id);
+  useEffect(() => { void social.refreshCoaches(); }, []);
+  const send = async (c: string, key: string) => {
+    setErr(null); setBusy(key);
+    try { const r = await social.connectCoach(c); toast(r.status === 'accepted' ? `Connected to ${r.name}` : `Request sent to ${r.name}`); onClose(); } catch (e2) { setErr(errMsg(e2)); }
+    setBusy(null);
+  };
+  return (
+    <Sheet title="Connect with a coach" onClose={onClose}>
+      <div className="stack">
+        {list.length > 0 && (
+          <div className="stack" style={{ gap: 8 }} data-testid="coach-list">
+            <b className="small">PX coaches</b>
+            {list.map((c) => (
+              <div key={c.user_id} className="friend-row" data-testid="coach-option">
+                <span className="grow"><b>{c.display_name}</b>{c.role === 'owner' && <span className="small muted"> · Head coach</span>}</span>
+                <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => send(c.friend_code, c.user_id)} data-testid="coach-pick">{busy === c.user_id ? 'Sending…' : 'Request'}</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <form className="stack" onSubmit={(e) => { e.preventDefault(); void send(code, 'code'); }}>
+          <div className="field"><label className="label" htmlFor="cc-code">{list.length ? 'Or enter a coach’s code' : 'Your coach’s code'}</label><input id="cc-code" className="input code-input" placeholder="ABCD-2345" autoCapitalize="characters" autoComplete="off" spellCheck={false} value={code} onChange={(e) => { const n = normalizeCode(e.target.value); setCode(n.length > 4 ? `${n.slice(0, 4)}-${n.slice(4)}` : n); }} data-testid="coach-code" /></div>
+          <p className="small muted">Once they accept, they’ll see your recent workouts. Check-ins stay private unless you switch them on.</p>
+          {err && <p className="form-error" role="alert" data-testid="coach-error">{err}</p>}
+          <button className="btn btn-outline btn-block" disabled={!!busy || normalizeCode(code).length !== 8} data-testid="coach-send">{busy === 'code' ? 'Sending…' : 'Send request'}</button>
+        </form>
+      </div>
+    </Sheet>
+  );
+}
+
+/** Owner only: who can coach under PX. The database checks it's really the owner. */
+function TeamCard() {
+  const st = useSocial();
+  const toast = useToast();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [drop, setDrop] = useState<{ id: string; name: string } | null>(null);
+  const why: Record<string, string> = { not_found: 'No one has that code. Ask them for the code on their Friends tab.', already: 'They’re already on your team.', not_owner: 'Only the owner can add coaches.' };
   return (
-    <Sheet title="Connect your coach" onClose={onClose}>
-      <form className="stack" onSubmit={async (e) => {
-        e.preventDefault();
-        setErr(null);
-        setBusy(true);
-        try { const r = await social.connectCoach(code); toast(r.status === 'accepted' ? `Connected to ${r.name}` : `Request sent to ${r.name}`); onClose(); } catch (e2) { setErr(errMsg(e2)); }
+    <div className="stack" style={{ gap: 8 }} data-testid="team">
+      <b className="small">Your coaching team</b>
+      {st.staff.map((m) => (
+        <div key={m.user_id} className="friend-row" data-testid="team-member">
+          <span className="grow"><b>{m.display_name ?? 'Coach'}</b><span className="small muted"> · {m.role === 'owner' ? 'Owner' : 'Coach'}</span></span>
+          {m.role === 'coach' && <button className="link-quiet small" onClick={() => setDrop({ id: m.user_id, name: m.display_name ?? 'this coach' })} data-testid="team-remove">Remove</button>}
+        </div>
+      ))}
+      <form className="row" style={{ gap: 8 }} onSubmit={async (e) => {
+        e.preventDefault(); setBusy(true);
+        try { const r = await social.addCoach(code); toast(r.ok ? `${r.name} is now a PX coach` : why[r.reason ?? ''] ?? 'Couldn’t add them'); if (r.ok) setCode(''); } catch (e2) { toast(errMsg(e2)); }
         setBusy(false);
       }}>
-        <div className="field"><label className="label" htmlFor="cc-code">Your coach’s code</label><input id="cc-code" className="input code-input" placeholder="ABCD-2345" autoCapitalize="characters" autoComplete="off" spellCheck={false} value={code} onChange={(e) => { const n = normalizeCode(e.target.value); setCode(n.length > 4 ? `${n.slice(0, 4)}-${n.slice(4)}` : n); }} data-testid="coach-code" /></div>
-        <p className="small muted">Once they accept, they’ll see your recent workouts. Check-ins stay private unless you switch them on.</p>
-        {err && <p className="form-error" role="alert" data-testid="coach-error">{err}</p>}
-        <button className="btn btn-primary btn-block" disabled={busy || normalizeCode(code).length !== 8} data-testid="coach-send">{busy ? 'Sending…' : 'Send request'}</button>
+        <input className="input code-input grow" placeholder="Their friend code" aria-label="New coach’s friend code" autoCapitalize="characters" value={code} onChange={(e) => { const n = normalizeCode(e.target.value); setCode(n.length > 4 ? `${n.slice(0, 4)}-${n.slice(4)}` : n); }} data-testid="team-code" />
+        <button className="btn btn-outline" disabled={busy || normalizeCode(code).length !== 8} data-testid="team-add">Add coach</button>
       </form>
-    </Sheet>
+      <p className="small muted" style={{ margin: 0 }}>Coaches you add can take clients, post sessions and get paid. Remove them any time.</p>
+      {drop && <ConfirmDialog title={`Remove ${drop.name} as a coach?`} body="They won’t be able to take new clients, post sessions or set prices. Their past payments and notes stay." confirmLabel="Remove" danger onCancel={() => setDrop(null)} onConfirm={() => { const d = drop; setDrop(null); social.removeCoach(d.id).then(() => toast('Coach removed')).catch((e) => toast(errMsg(e))); }} />}
+    </div>
   );
 }
 

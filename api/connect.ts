@@ -14,7 +14,7 @@ export default async function handler(req: Request): Promise<Response> {
   const body = await req.json().catch(() => ({}));
 
   const prof = await (await adminRest(`/social_profiles?select=is_coach&user_id=eq.${user.id}`)).json();
-  if (!Array.isArray(prof) || !prof[0]?.is_coach) return fail('Turn on coach mode first.', 403, 'not_coach');
+  if (!Array.isArray(prof) || !prof[0]?.is_coach) return fail('Only PX coaches can set up payouts.', 403, 'not_coach');
 
   const rows = await (await adminRest(`/coach_payouts?select=stripe_account_id,charges_enabled&coach_id=eq.${user.id}`)).json();
   let acct: string | undefined = Array.isArray(rows) ? rows[0]?.stripe_account_id : undefined;

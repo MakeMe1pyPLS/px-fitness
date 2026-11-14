@@ -86,7 +86,7 @@ function Shell() {
   }, [appRoute]);
 
   if (completeId) return <Complete id={completeId} go={(r) => { setCompleteId(null); go(r); }} />;
-  if (appRoute === 'welcome') return <Landing hasProfile={hasProfile} onStart={() => go('onboarding')} onOpen={() => go('home')} onBook={() => go('coach')} onCoach={() => { store.setCoach({ viewAsCoach: true }); go('biz'); }} />;
+  if (appRoute === 'welcome') return <Landing hasProfile={hasProfile} onStart={() => go('onboarding')} onOpen={() => go('home')} onBook={() => go('coach')} onCoach={cloudEnabled() ? undefined : () => { store.setCoach({ viewAsCoach: true }); go('biz'); }} />;
   if (appRoute === 'onboarding') return hasProfile ? <Landing hasProfile onStart={() => go('home')} onOpen={() => go('home')} /> : <Onboarding onDone={() => go('home')} onExit={() => go('welcome')} />;
   if (appRoute === 'workout') return <Workout go={go} onComplete={(id) => setCompleteId(id)} />;
   const tabs = coachView ? COACH_TABS : TABS;

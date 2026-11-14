@@ -20,8 +20,8 @@ const P = {
 
 const ls = (): Storage | null => { try { return globalThis.localStorage ?? null; } catch { return null; } };
 export const demoRequested = () => ls()?.getItem(FLAG) === 'on';
-export function startDemo() { ls()?.setItem(FLAG, 'on'); ls()?.removeItem(DB_KEY); ls()?.removeItem('px:auth'); ls()?.removeItem('px:sync'); history.replaceState(null, '', location.pathname + '#friends'); location.reload(); }
-export function exitDemo() { ls()?.removeItem(FLAG); ls()?.removeItem(DB_KEY); ls()?.removeItem('px:auth'); ls()?.removeItem('px:sync'); history.replaceState(null, '', location.pathname + '#you'); location.reload(); }
+export function startDemo(asCoach = false) { ls()?.setItem(FLAG, 'on'); if (asCoach) ls()?.setItem('px:demo-role', 'owner'); else ls()?.removeItem('px:demo-role'); ls()?.removeItem(DB_KEY); ls()?.removeItem('px:auth'); ls()?.removeItem('px:sync'); history.replaceState(null, '', location.pathname + '#friends'); location.reload(); }
+export function exitDemo() { ls()?.removeItem(FLAG); ls()?.removeItem('px:demo-role'); ls()?.removeItem(DB_KEY); ls()?.removeItem('px:auth'); ls()?.removeItem('px:sync'); history.replaceState(null, '', location.pathname + '#you'); location.reload(); }
 
 // ── helpers ────────────────────────────────────────────────────────────────
 const day = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -34,15 +34,18 @@ const uuid = () => `00000000-0000-4000-9000-${String(Date.now() % 1e8).padStart(
 const pair = (a: string, b: string) => (a < b ? [a, b] : [b, a]);
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
-interface DB { profiles: Row[]; friendships: Row[]; photos: Row[]; cheers: Row[]; coach: Row[]; notes: Row[]; invites: Row[]; challenges: Row[]; members: Row[]; payouts: Row[]; offers: Row[]; payments: Row[]; events: Row[]; rsvps: Row[]; subs: Row[]; userData: Row | null }
+interface DB { role: 'owner' | 'coach' | null; staff: Row[]; profiles: Row[]; friendships: Row[]; photos: Row[]; cheers: Row[]; coach: Row[]; notes: Row[]; invites: Row[]; challenges: Row[]; members: Row[]; payouts: Row[]; offers: Row[]; payments: Row[]; events: Row[]; rsvps: Row[]; subs: Row[]; userData: Row | null }
 
 const workout = (id: string, name: string, d: number, min: number, ex: string[], sets: number, short = false) => ({ id, name, date: day(d), minutes: min, short, exercises: ex, sets });
 
 function seed(): DB {
   const myName = (() => { try { return JSON.parse(ls()?.getItem('kova:data') ?? '{}')?.profile?.name || 'You'; } catch { return 'You'; } })();
+  const role = ls()?.getItem('px:demo-role') === 'owner' ? 'owner' as const : null;
   return {
+    role,
+    staff: [...(role ? [{ user_id: ME, role: 'owner', created_at: at(-30, 9) }] : []), { user_id: P.coach, role: role ? 'coach' : 'owner', created_at: at(-30, 9) }],
     profiles: [
-      { user_id: ME, display_name: myName, friend_code: 'DEMO2345', share_routine: false, share_workouts: true, share_combat: false, is_coach: false, shared: {}, updated_at: new Date().toISOString() },
+      { user_id: ME, display_name: myName, friend_code: 'DEMO2345', share_routine: false, share_workouts: true, share_combat: false, is_coach: !!role, shared: {}, updated_at: new Date().toISOString() },
       { user_id: P.coach, display_name: 'PX Coach', friend_code: 'PXCH8888', is_coach: true, share_routine: true, share_workouts: true, share_combat: false, updated_at: '', shared: {
         routine: [{ name: 'PX Boot Camp A', focus: 'Full body', exercises: [{ name: 'Push-up', sets: 3, target: '8–12 reps' }, { name: 'Pull-up', sets: 3, target: '3–6 reps' }, { name: 'Pistol squat (box)', sets: 3, target: '5 each leg' }] }],
         recent: [workout('cw1', 'Handstand practice', -1, 25, ['Wall walk', 'Chest-to-wall hold'], 9)],
@@ -69,7 +72,7 @@ function seed(): DB {
     cheers: [{ from_user: P.maya, to_user: ME, target: 'w:any', created_at: at(-1, 20) }],
     coach: [
       { client_id: ME, coach_id: P.coach, status: 'accepted', share_checkins: false, client_shared: {}, created_at: at(-14, 9) },
-      { client_id: P.taylor, coach_id: ME, status: 'pending', share_checkins: false, client_shared: {}, created_at: at(0, 7) },
+      ...(role ? [{ client_id: P.taylor, coach_id: ME, status: 'pending', share_checkins: false, client_shared: {}, created_at: at(0, 7) }] : []),
     ],
     notes: [{ id: '00000000-0000-4000-8000-00000000a07e', coach_id: P.coach, client_id: ME, body: 'Great consistency this week. Add one more set to your push-ups on Wednesday and keep Saturday light.', created_at: at(-1, 19) }],
     invites: [{ id: '00000000-0000-4000-8000-0000000017e1', from_user: P.jordan, to_user: ME, day: day(1), at_time: '18:00', workout: 'Upper Push', note: 'Gym on 5th St?', status: 'pending', created_at: at(0, 9) }],
@@ -124,8 +127,20 @@ async function route(url: URL, method: string, body: any): Promise<Response> { /
   if (p === '/rest/v1/social_profiles') {
     if (m === 'GET') return json(200, (ids(q, 'user_id') ?? db.profiles.map((x) => x.user_id)).map(prof).filter((r) => r && canSee(r.user_id)));
     if (m === 'POST') { const row = { share_routine: false, share_workouts: false, share_combat: false, is_coach: false, shared: {}, ...body, updated_at: new Date().toISOString() }; db.profiles = db.profiles.filter((x) => x.user_id !== ME).concat(row); save(); return json(201, [row]); }
-    if (m === 'PATCH') { const me = prof(ME); if (me) Object.assign(me, body); save(); return json(200, me ? [me] : []); }
+    if (m === 'PATCH') { const me = prof(ME); if (me) Object.assign(me, body, { is_coach: !!db.role }); save(); return json(200, me ? [me] : []); }
   }
+  if (p === '/rest/v1/rpc/my_role') return json(200, db.role);
+  if (p === '/rest/v1/rpc/public_coaches') return json(200, db.staff.map((x) => ({ user_id: x.user_id, display_name: prof(x.user_id)?.display_name, friend_code: prof(x.user_id)?.friend_code, role: x.role })));
+  if (p === '/rest/v1/rpc/list_staff') return json(200, db.role === 'owner' ? db.staff.map((x) => ({ ...x, display_name: prof(x.user_id)?.display_name ?? null })) : []);
+  if (p === '/rest/v1/rpc/add_coach') {
+    if (db.role !== 'owner') return json(200, { ok: false, reason: 'not_owner' });
+    const them = db.profiles.find((r) => r.friend_code === body.code);
+    if (!them) return json(200, { ok: false, reason: 'not_found' });
+    if (db.staff.some((x) => x.user_id === them.user_id)) return json(200, { ok: false, reason: 'already' });
+    db.staff.push({ user_id: them.user_id, role: 'coach', created_at: new Date().toISOString() }); them.is_coach = true; save();
+    return json(200, { ok: true, name: them.display_name });
+  }
+  if (p === '/rest/v1/rpc/remove_coach') { if (db.role !== 'owner') return json(200, false); const had = db.staff.some((x) => x.user_id === body.coach && x.role === 'coach'); db.staff = db.staff.filter((x) => !(x.user_id === body.coach && x.role === 'coach')); const pr = prof(body.coach); if (pr && had) pr.is_coach = false; save(); return json(200, had); }
   if (p === '/rest/v1/rpc/my_connections') return json(200, db.friendships.filter((f) => [f.user_a, f.user_b].includes(ME)).map((f) => { const o = f.user_a === ME ? f.user_b : f.user_a; return { user_id: o, display_name: prof(o)?.display_name ?? null, status: f.status, incoming: f.requested_by !== ME, created_at: f.created_at }; }));
   if (p === '/rest/v1/rpc/request_friend') {
     const them = db.profiles.find((r) => r.friend_code === body.code);
@@ -218,6 +233,7 @@ async function route(url: URL, method: string, body: any): Promise<Response> { /
 /** Answer the app's backend requests in memory. Call once, before the app starts. */
 export function installDemo() {
   try { db = JSON.parse(ls()?.getItem(DB_KEY) ?? 'null') ?? seed(); } catch { db = seed(); }
+  if (!db.staff) db = seed(); // saved before roles existed
   if (!db.userData && !ls()?.getItem(DB_KEY)) save();
   // Start signed in as the demo user.
   if (!ls()?.getItem('px:auth')) ls()?.setItem('px:auth', JSON.stringify({ access_token: token(), refresh_token: 'demo-refresh', expires_at: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 30, user: { id: ME, email: 'you@demo.px' } }));

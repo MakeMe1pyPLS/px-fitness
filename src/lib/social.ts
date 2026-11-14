@@ -71,7 +71,13 @@ export interface SocialState {
   offers: CoachOffer[];
   payments: CoachingPayment[];
   payouts: { connected: boolean; chargesEnabled: boolean } | null;
+  role: StaffRole; // set by PX, never by the member
+  coaches: PublicCoach[]; // PX coaches members can connect to
+  staff: StaffMember[]; // owner only: the coaching team
 }
+export type StaffRole = 'owner' | 'coach' | null;
+export interface PublicCoach { user_id: string; display_name: string; friend_code: string; role: 'owner' | 'coach' }
+export interface StaffMember { user_id: string; display_name: string | null; role: 'owner' | 'coach'; created_at: string }
 
 // ── pure helpers (unit-tested) ──────────────────────────────────────────────
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I, O, 0, 1
@@ -194,7 +200,7 @@ const REQUEST_ERRORS: Record<string, string> = {
 
 // ── live state ──────────────────────────────────────────────────────────────
 type Listener = () => void;
-const empty = (): SocialState => ({ loaded: false, loading: false, error: null, me: null, connections: [], friends: {}, photos: [], cheers: [], coachLinks: [], notes: [], invites: [], challenges: [], members: [], people: {}, events: [], offers: [], payments: [], payouts: null });
+const empty = (): SocialState => ({ loaded: false, loading: false, error: null, me: null, connections: [], friends: {}, photos: [], cheers: [], coachLinks: [], notes: [], invites: [], challenges: [], members: [], people: {}, events: [], offers: [], payments: [], payouts: null, role: null, coaches: [], staff: [] });
 
 export class Social {
   private state: SocialState = empty();
@@ -253,13 +259,16 @@ export class Social {
       for (const x of coachLinks ?? []) if (x.display_name) names[x.other_id] = x.display_name;
       for (const x of connections ?? []) if (x.display_name) names[x.user_id] = x.display_name;
       if (mine?.[0]) names[me] = mine[0].display_name;
-      const [events, offers, payments, payouts] = await Promise.all([
+      const [events, offers, payments, payouts, role, coaches] = await Promise.all([
         this.cloud.req('/rest/v1/rpc/my_events', { method: 'POST', body: '{}' }) as Promise<CoachEvent[]>,
         this.cloud.req('/rest/v1/coach_offers?select=*&active=eq.true&order=price_cents.asc') as Promise<CoachOffer[]>,
         this.cloud.req('/rest/v1/coaching_payments?select=*&order=created_at.desc&limit=100') as Promise<CoachingPayment[]>,
         this.cloud.req(`/rest/v1/coach_payouts?select=charges_enabled&coach_id=eq.${me}`) as Promise<{ charges_enabled: boolean }[]>,
+        (this.cloud.req('/rest/v1/rpc/my_role', { method: 'POST', body: '{}' }) as Promise<StaffRole>).catch(() => null),
+        (this.cloud.req('/rest/v1/rpc/public_coaches', { method: 'POST', body: '{}' }) as Promise<PublicCoach[]>).catch(() => [] as PublicCoach[]),
       ]);
-      this.set({ loaded: true, loading: false, me: mine?.[0] ?? null, connections: connections ?? [], friends, photos: photos ?? [], cheers: cheers ?? [], coachLinks: coachLinks ?? [], notes: notes ?? [], invites: invites ?? [], challenges: challenges ?? [], members: members ?? [], people: names, events: events ?? [], offers: offers ?? [], payments: payments ?? [], payouts: payouts?.[0] ? { connected: true, chargesEnabled: payouts[0].charges_enabled } : { connected: false, chargesEnabled: false } });
+      const staff = role === 'owner' ? ((await this.cloud.req('/rest/v1/rpc/list_staff', { method: 'POST', body: '{}' }).catch(() => [])) as StaffMember[]) : [];
+      this.set({ loaded: true, loading: false, me: mine?.[0] ?? null, connections: connections ?? [], friends, photos: photos ?? [], cheers: cheers ?? [], coachLinks: coachLinks ?? [], notes: notes ?? [], invites: invites ?? [], challenges: challenges ?? [], members: members ?? [], people: names, events: events ?? [], offers: offers ?? [], payments: payments ?? [], payouts: payouts?.[0] ? { connected: true, chargesEnabled: payouts[0].charges_enabled } : { connected: false, chargesEnabled: false }, role: role ?? null, coaches: coaches ?? [], staff: staff ?? [] });
       void this.syncProgress();
       void this.pushCoachShares();
     } catch (e) {
@@ -352,7 +361,16 @@ export class Social {
   }
 
   // ── coach & clients ─────────────────────────────────────────────────────
-  async setCoachMode(on: boolean) { await this.patchMe({ is_coach: on }); }
+  /** Fresh list of PX coaches (when someone opens "Connect with a coach"). */
+  async refreshCoaches() { try { const c = await this.cloud.req('/rest/v1/rpc/public_coaches', { method: 'POST', body: '{}' }) as PublicCoach[]; this.set({ coaches: c ?? [] }); } catch { /* keep what we had */ } }
+
+  // ── coaching team (owner only; the database enforces it) ────────────────
+  async addCoach(code: string): Promise<{ ok: boolean; reason?: string; name?: string }> {
+    const r = await this.cloud.req('/rest/v1/rpc/add_coach', { method: 'POST', body: JSON.stringify({ code: normalizeCode(code) }) }) as { ok: boolean; reason?: string; name?: string };
+    if (r.ok) await this.load();
+    return r;
+  }
+  async removeCoach(id: string) { await this.cloud.req('/rest/v1/rpc/remove_coach', { method: 'POST', body: JSON.stringify({ coach: id }) }); await this.load(); }
 
   async connectCoach(code: string) {
     const clean = normalizeCode(code);

@@ -37,7 +37,7 @@ const server = createServer(async (req, res) => {
 const origin = `http://127.0.0.1:${server.address().port}/`;
 
 // ── fake Supabase with friends-only rules ─────────────────────────────────
-const db = { users: new Map(), userData: new Map(), profiles: new Map(), friendships: [], photos: [], cheers: [], files: new Map(), coach: [], notes: [], invites: [], challenges: [], members: [], payouts: new Map(), offers: [], payments: [], events: [], rsvps: [] };
+const db = { users: new Map(), userData: new Map(), profiles: new Map(), friendships: [], photos: [], cheers: [], files: new Map(), coach: [], notes: [], invites: [], challenges: [], members: [], payouts: new Map(), offers: [], payments: [], events: [], rsvps: [], staff: new Map() };
 let nextId = 1;
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (u) => `h.${b64u({ sub: u.id, email: u.email, exp: Math.floor(Date.now() / 1000) + 3600 })}.s`;
@@ -64,15 +64,18 @@ async function supabase(route) {
   if (p === '/rest/v1/user_data') { if (m === 'GET') { const r = db.userData.get(me); return json(200, r ? [r] : []); } const row = { data: body.data, updated_at: new Date().toISOString() }; db.userData.set(me, row); return json(201, [row]); }
   if (p === '/rest/v1/subscriptions') return json(200, []);
 
+  if (p === '/rest/v1/rpc/my_role') return json(200, db.staff.get(me) ?? null);
+  if (p === '/rest/v1/rpc/public_coaches') return json(200, [...db.staff].map(([id, role]) => ({ user_id: id, display_name: db.profiles.get(id)?.display_name, friend_code: db.profiles.get(id)?.friend_code, role })));
+  if (p === '/rest/v1/rpc/list_staff') return json(200, db.staff.get(me) === 'owner' ? [...db.staff].map(([id, role]) => ({ user_id: id, role, display_name: db.profiles.get(id)?.display_name ?? null, created_at: '' })) : []);
   if (p === '/rest/v1/social_profiles') {
     if (m === 'GET') return json(200, (ids(q, 'user_id') ?? [...db.profiles.keys()]).map((id) => db.profiles.get(id)).filter((r) => r && canSee(me, r.user_id)));
     if (m === 'POST') {
       if (body.user_id !== me) return json(403, { message: 'row-level security' });
       if ([...db.profiles.values()].some((r) => r.friend_code === body.friend_code)) return json(409, { code: '23505' });
-      const row = { share_routine: false, share_workouts: false, shared: {}, ...body, updated_at: new Date().toISOString() };
+      const row = { share_routine: false, share_workouts: false, shared: {}, ...body, is_coach: db.staff.has(me), updated_at: new Date().toISOString() };
       db.profiles.set(me, row); return json(201, [row]);
     }
-    if (m === 'PATCH') { const id = ids(q, 'user_id')?.[0]; if (id !== me) return json(200, []); const row = { ...db.profiles.get(me), ...body }; db.profiles.set(me, row); return json(200, [row]); }
+    if (m === 'PATCH') { const id = ids(q, 'user_id')?.[0]; if (id !== me) return json(200, []); const row = { ...db.profiles.get(me), ...body, is_coach: db.staff.has(me) }; db.profiles.set(me, row); return json(200, [row]); }
   }
   if (p === '/rest/v1/rpc/my_connections') return json(200, db.friendships.filter((f) => [f.user_a, f.user_b].includes(me)).map((f) => { const other = f.user_a === me ? f.user_b : f.user_a; return { user_id: other, display_name: db.profiles.get(other)?.display_name ?? null, status: f.status, incoming: f.requested_by !== me, created_at: f.created_at }; }));
   if (p === '/rest/v1/rpc/request_friend') {
@@ -418,15 +421,21 @@ await step('coach: Alex turns on coach mode; Bri connects; check-ins only after 
   page = alex;
   await alex.goto(origin + '#friends');
   await alex.getByTestId('ftab-coach').click();
-  await alex.getByRole('switch', { name: 'Coach mode' }).click();
-  await toast(alex, 'Coach mode on');
+  assert.equal(await alex.getByRole('switch', { name: 'Coach mode' }).count(), 0, 'members can’t make themselves coaches');
+  // PX bootstraps the owner in the database (supabase/migrations/0005).
+  const alexId = [...db.profiles.values()].find((r) => r.display_name === 'Alex').user_id;
+  db.staff.set(alexId, 'owner'); db.profiles.get(alexId).is_coach = true;
+  await alex.reload();
+  await alex.getByTestId('ftab-coach').click();
+  await alex.getByTestId('staff-badge').getByText('You run PX coaching').waitFor();
+  await alex.getByTestId('team').getByText('Owner').waitFor();
   page = bri;
   await bri.evaluate(() => { const s = globalThis.__kova; const d = new Date(); const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; s.saveCheckin(k, { mood: 2, energy: 2, sleepHours: 5, note: 'PRIVATE bad night' }); });
   await bri.goto(origin + '#friends');
   await bri.getByTestId('ftab-coach').click();
   await bri.getByTestId('connect-coach').click();
-  await bri.getByTestId('coach-code').fill(alexCode);
-  await bri.getByTestId('coach-send').click();
+  await bri.getByTestId('coach-list').getByText('Alex').waitFor();
+  await bri.getByTestId('coach-pick').click();
   await toast(bri, 'Request sent to Alex');
   page = alex;
   await alex.reload();

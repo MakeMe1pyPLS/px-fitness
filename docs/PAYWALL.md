@@ -115,3 +115,12 @@ Rules in `supabase/migrations/0004_payments_events.sql`.
 
 Tested: 110 database security checks, 95 unit tests, 24/24 two-person browser steps (twice),
 all earlier suites. Not yet run against real Supabase or Stripe.
+
+## Coaches are staff (0005)
+
+Coach status isn't a switch members can flip. `supabase/migrations/0005_staff_roles.sql` adds a `staff` table that only the owner controls; `social_profiles.is_coach` mirrors it automatically.
+
+1. After the client signs up in the app and opens Friends once (so he has a profile), make him the owner in the Supabase SQL editor:
+   `insert into public.staff (user_id, role) values ('<his user id from Authentication → Users>', 'owner');`
+2. From then on he adds coaches himself: Friends → Coach → Your coaching team → their friend code. He can remove them there too.
+3. Members connect from Friends → Coach → Connect my coach, which lists PX coaches.

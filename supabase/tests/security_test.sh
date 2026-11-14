@@ -89,7 +89,26 @@ D=dddddddd-0000-0000-0000-000000000004
 q -c "insert into auth.users values ('$D','d@x')" >/dev/null
 as $D "insert into social_profiles (user_id, display_name, friend_code) values ('$D','Dee','DDDD5555')" >/dev/null
 expect "coach: can't link to someone who isn't a coach" "not_coach" "$(as $B "select request_coach('DDDD5555')->>'reason'")"
+# Coaches are staff now: switching it on yourself does nothing.
 as $D "update social_profiles set is_coach = true where user_id = '$D'" >/dev/null
+expect "roles: members can't make themselves coaches" "f" "$(q -c "select is_coach from social_profiles where user_id='$D'")"
+expect_err "roles: members can't read the staff list" "$(as $D "select count(*) from staff")"
+expect_err "roles: members can't add themselves as staff" "$(as $D "insert into staff (user_id, role) values ('$D','owner')")"
+O=eeeeeeee-0000-0000-0000-000000000005
+q -c "insert into auth.users values ('$O','owner@x')" >/dev/null
+as $O "insert into social_profiles (user_id, display_name, friend_code) values ('$O','PX','PXOW2222')" >/dev/null
+q -c "insert into staff (user_id, role) values ('$O','owner')" >/dev/null
+expect "roles: owner bootstrapped from SQL" "owner" "$(as $O "select my_role()")"
+expect "roles: owner's profile shows as coach" "t" "$(q -c "select is_coach from social_profiles where user_id='$O'")"
+expect "roles: a member can't add coaches" "not_owner" "$(as $B "select add_coach('DDDD5555')->>'reason'")"
+expect "roles: owner adds a coach by code" "true" "$(as $O "select add_coach('dddd5555')->>'ok'")"
+expect "roles: adding twice is refused" "already" "$(as $O "select add_coach('DDDD5555')->>'reason'")"
+expect "roles: new coach's profile flips on" "t" "$(q -c "select is_coach from social_profiles where user_id='$D'")"
+expect "roles: coach sees own role" "coach" "$(as $D "select my_role()")"
+expect "roles: members see the coach list" "2" "$(as $B "select count(*) from public_coaches()")"
+expect "roles: only the owner sees the team list" "0|2" "$(as $D "select count(*) from list_staff()")|$(as $O "select count(*) from list_staff()")"
+expect "roles: coach can't remove the owner" "f" "$(as $D "select remove_coach('$O')")"
+expect_err "anon: can't list coaches" "$(as anon "select public_coaches()")"
 expect "coach: client requests by code" "pending" "$(as $B "select request_coach('DDDD5555')->>'status'")"
 expect "coach: client can't share before acceptance" "f" "$(as $B "select set_coach_share('$D', true, '{\"recent\":[1]}')")"
 expect "coach: client can't accept for the coach" "f" "$(as $B "select accept_client('$B')")"
@@ -173,6 +192,12 @@ expect "events: cancel own RSVP frees a spot" "true" "$(as $C "delete from event
 as $D "update coach_events set cancelled = true where id = '$EV'" >/dev/null
 expect "events: cancelled sessions take no sign-ups" "cancelled" "$(as $C "select rsvp_event('$EV')->>'reason'")"
 expect_err "anon: can't view events" "$(as anon "select get_event('$EV')")"
+
+# ── removing a coach ───────────────────────────────────────────────────────
+expect "roles: owner removes a coach" "t" "$(as $O "select remove_coach('$D')")"
+expect "roles: removed coach's profile flips off" "f" "$(q -c "select is_coach from social_profiles where user_id='$D'")"
+expect_err "roles: removed coach can't post sessions" "$(as $D "insert into coach_events (coach_id, title, starts_at, location) values ('$D','x', now() + interval '2 days', 'park')")"
+expect "roles: owner can't be removed this way" "f" "$(as $O "select remove_coach('$O')")"
 
 dropdb $DB
 echo; echo "$pass passed, $fail failed"
