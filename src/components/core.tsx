@@ -123,19 +123,82 @@ function useFocusTrap(ref: React.RefObject<HTMLElement>) {
 
 export function Sheet({ title, onClose, children, dark, label }: { title?: string; onClose: () => void; children: React.ReactNode; dark?: boolean; label?: string }) {
   const ref = useRef<HTMLDivElement>(null);
-  useEscape(onClose);
+  const scrim = useRef<HTMLDivElement>(null);
+  const closing = useRef(false);
+  // Slide away, then close. Used by the X, the scrim, Escape and a drag down.
+  const dismiss = () => {
+    if (closing.current) return;
+    closing.current = true;
+    const el = ref.current;
+    const reduced = document.documentElement.dataset.motion === 'reduced' || matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!el || reduced) { onClose(); return; }
+    el.style.transition = 'transform 220ms cubic-bezier(0.4, 0, 1, 1)';
+    el.style.transform = 'translateY(100%)';
+    if (scrim.current) { scrim.current.style.transition = 'opacity 220ms'; scrim.current.style.opacity = '0'; }
+    setTimeout(onClose, 200);
+  };
+  useEscape(dismiss);
   useFocusTrap(ref);
   useEffect(() => {
     const o = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = o; };
   }, []);
+
+  // Drag down to close: from the handle/title anywhere, or from the body when it's scrolled to the top.
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    let y0 = 0, t0 = 0, dy = 0, active = false, decided = false;
+    const skip = (t: EventTarget | null) => !!(t as Element | null)?.closest?.('textarea, input, select, [role="slider"], .dial, .no-drag, iframe');
+    const start = (y: number, target: EventTarget | null) => {
+      if (closing.current) return;
+      const onHandle = !!(target as Element | null)?.closest?.('.sheet-handle');
+      if (!onHandle && (skip(target) || el.scrollTop > 0)) { active = false; return; }
+      y0 = y; t0 = performance.now(); dy = 0; active = true; decided = onHandle;
+    };
+    const move = (y: number, e: Event) => {
+      if (!active) return;
+      const d = y - y0;
+      if (!decided) { if (Math.abs(d) < 6) return; if (d < 0 || el.scrollTop > 0) { active = false; return; } decided = true; }
+      dy = Math.max(0, d);
+      if (e.cancelable) e.preventDefault();
+      el.style.transition = 'none';
+      el.style.transform = `translateY(${dy}px)`;
+      if (scrim.current) scrim.current.style.opacity = String(Math.max(0, 1 - dy / 400));
+    };
+    const end = () => {
+      if (!active) return; active = false;
+      if (!decided) return;
+      const v = dy / Math.max(1, performance.now() - t0);
+      if (dy > Math.min(140, el.offsetHeight * 0.3) || (v > 0.6 && dy > 40)) { dismiss(); return; }
+      el.style.transition = 'transform 320ms cubic-bezier(0.34, 1.4, 0.64, 1)';
+      el.style.transform = '';
+      if (scrim.current) { scrim.current.style.transition = 'opacity 200ms'; scrim.current.style.opacity = ''; }
+    };
+    const ts = (e: TouchEvent) => start(e.touches[0].clientY, e.target);
+    const tm = (e: TouchEvent) => move(e.touches[0].clientY, e);
+    const pd = (e: PointerEvent) => { if (e.pointerType === 'mouse' && (e.target as Element).closest('.sheet-handle')) { start(e.clientY, e.target); (e.target as Element).setPointerCapture?.(e.pointerId); } };
+    const pm = (e: PointerEvent) => { if (e.pointerType === 'mouse') move(e.clientY, e); };
+    const pu = (e: PointerEvent) => { if (e.pointerType === 'mouse') end(); };
+    el.addEventListener('touchstart', ts, { passive: true });
+    el.addEventListener('touchmove', tm, { passive: false });
+    el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+    el.addEventListener('pointerdown', pd); el.addEventListener('pointermove', pm); el.addEventListener('pointerup', pu);
+    return () => {
+      el.removeEventListener('touchstart', ts); el.removeEventListener('touchmove', tm); el.removeEventListener('touchend', end); el.removeEventListener('touchcancel', end);
+      el.removeEventListener('pointerdown', pd); el.removeEventListener('pointermove', pm); el.removeEventListener('pointerup', pu);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Portal>
-      <div className="scrim" onClick={onClose} />
+      <div ref={scrim} className="scrim" onClick={dismiss} />
       <div ref={ref} className={'sheet' + (dark ? ' dark' : '')} role="dialog" aria-modal="true" aria-label={label ?? title} tabIndex={-1}>
-        <div className="grabber" aria-hidden />
-        {title && <h2 className="sheet-title display">{title}</h2>}
+        <div className="sheet-handle">
+          <div className="grabber" aria-hidden />
+          <button type="button" className="sheet-x" aria-label="Close" onClick={dismiss} data-testid="sheet-close"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" /></svg></button>
+          {title && <h2 className="sheet-title display">{title}</h2>}
+        </div>
         {children}
       </div>
     </Portal>

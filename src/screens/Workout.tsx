@@ -247,9 +247,10 @@ function FinishSheet({ s, total, done, onClose, onSave }: { s: Session; total: n
         </div>
         <div className="field">
           <label className="label" htmlFor="wk-note">Note <span className="muted">(optional)</span></label>
-          <textarea id="wk-note" className="textarea" style={{ background: 'var(--night-3)', borderColor: 'var(--night-line)' }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="How it went, anything to change next time" />
+          <textarea id="wk-note" className="textarea" enterKeyHint="done" onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.closest('.sheet')?.querySelector('[data-testid="save-workout"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 350); }} style={{ background: 'var(--night-3)', borderColor: 'var(--night-line)' }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="How it went, anything to change next time" />
         </div>
         <button className="btn btn-primary btn-lg btn-block" onClick={() => onSave(effort, note)} disabled={done === 0} data-testid="save-workout">{done === 0 ? 'Log at least one set' : 'Save workout'}</button>
+        <button className="btn btn-ghost btn-block" style={{ color: 'var(--night-ink-2)' }} onClick={onClose} data-testid="back-to-workout">Back to workout</button>
       </div>
     </Sheet>
   );
