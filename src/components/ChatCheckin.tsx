@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, Portal, cloud, store, useCloud, useData, type Route } from './core';
 import { CloudError, isActive } from '../lib/cloud';
 import { nextTemplate, isTrainingDay } from '../lib/planner';
+import { noteAdvice, feelLabel } from '../lib/feelings';
 import { activeUpcoming, parseUpcoming, KIND_LABEL, type UpcomingKind } from '../lib/upcoming';
 import { addDays } from '../lib/dates';
 import { QUESTIONS, SAFETY_REPLY, detectSafety, greeting, nextStep, parseFreeText, recall, summarize, type Patch, type StepId } from '../lib/checkinBot';
@@ -60,7 +61,7 @@ function AiChat({ onClose, go, initialMood, onFallback }: Props & { onFallback: 
     if (!convo.length) return;
     setBusy(true);
     try {
-      const r = await cloud.aiCheckin(convo, { name: data.profile?.name ?? '', recall: recall(data) ?? '', todaySession: today(), opener, today: date, upcoming: activeUpcoming(data, date).slice(0, 4).map((e) => `${e.label || KIND_LABEL[e.kind]} ${e.date}`).join('; ') });
+      const r = await cloud.aiCheckin(convo, { name: data.profile?.name ?? '', recall: recall(data) ?? '', todaySession: today(), opener, today: date, upcoming: activeUpcoming(data, date).slice(0, 4).map((e) => `${e.label || KIND_LABEL[e.kind]} ${e.date}`).join('; '), lastNote: noteAdvice(data, date)?.said.map(feelLabel).join(', ') ?? '' });
       const patch: Patch = {};
       if (r.checkin) for (const k of AI_FIELDS) if (typeof r.checkin[k] === 'number') (patch as Record<string, number>)[k] = r.checkin[k] as number;
       if (Object.keys(patch).length) { store.saveCheckin(date, patch); setAnswers((a) => ({ ...a, ...patch })); }

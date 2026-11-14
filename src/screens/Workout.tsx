@@ -1,5 +1,7 @@
 import { VideoDemo, hasVideo } from '../components/VideoDemo';
 import { MiniPops } from '../components/Fidget';
+import { toDateKey } from '../lib/dates';
+import { extractFeelings, exerciseLoads, feelLabel, noteAdvice, summarize, PART_LABEL, type BodyPart, type SavedFeel } from '../lib/feelings';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, fmtClock, haptic, store, useData, useNow, useToast, type Route } from '../components/core';
 import { activeSession } from '../lib/planner';
@@ -20,6 +22,8 @@ function fmtSet(s: SetEntry | undefined, unit: string) {
 
 export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete: (id: string) => void }) {
   const data = useData();
+  // What they said after their last workout shapes this one (lib/feelings).
+  const felt = useMemo(() => noteAdvice(data, toDateKey(new Date())), [data.sessions]); // eslint-disable-line react-hooks/exhaustive-deps
   const s = activeSession(data);
   const now = useNow(1000);
   const toast = useToast();
@@ -69,8 +73,9 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
       </div>
 
       <div className="stack" style={{ padding: 16, gap: 14 }}>
+        {felt && <div className="note-advice small" data-testid="wk-note-advice"><b>{felt.headline}.</b> {felt.body}{felt.cautionParts.length > 0 && !s.exercises.some((e) => felt.cautionParts.some((pt) => exerciseLoads(e.exerciseId, pt))) ? ' None of today’s moves load it much.' : ''}</div>}
         {s.exercises.map((e, exIdx) => (
-          <ExerciseCard key={exIdx + e.exerciseId} data={data} session={s} exIdx={exIdx} onSetDone={(ex) => startRest(REST_DEFAULT[ex.metric])} onSwap={() => setSheet({ kind: 'swap', exIdx })} />
+          <ExerciseCard key={exIdx + e.exerciseId} data={data} session={s} exIdx={exIdx} caution={felt?.cautionParts.filter((pt) => exerciseLoads(e.exerciseId, pt)) ?? []} onSetDone={(ex) => startRest(REST_DEFAULT[ex.metric])} onSwap={() => setSheet({ kind: 'swap', exIdx })} />
         ))}
         <button className="btn ghost-dark btn-block" onClick={() => setSheet({ kind: 'add' })} data-testid="add-exercise"><Icon.plus /> Add exercise</button>
       </div>
@@ -113,7 +118,7 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
         <PickSheet title="Add exercise" data={data} options={allExercises(data.customExercises)} onClose={() => setSheet(null)}
           onPick={(id) => { store.addExercise(s.id, id); setSheet(null); }} search />
       )}
-      {sheet?.kind === 'finish' && <FinishSheet s={s} total={total} done={done} onClose={() => setSheet(null)} onSave={(effort, note) => { store.finishSession(s.id, effort, note); onComplete(s.id); }} />}
+      {sheet?.kind === 'finish' && <FinishSheet s={s} total={total} done={done} onClose={() => setSheet(null)} onSave={(effort, note, feelings) => { store.finishSession(s.id, effort, note, feelings); onComplete(s.id); }} />}
       {confirmEnd && (
         <ConfirmDialog title="End this workout?" body={done ? `Your ${done} logged sets are kept in history as an unfinished session. It won’t count as a completed day.` : 'Nothing has been logged yet, so this session will be discarded.'}
           confirmLabel="End workout" onCancel={() => setConfirmEnd(false)} onConfirm={() => { store.endSessionEarly(s.id); setConfirmEnd(false); go('home'); }} />
@@ -122,7 +127,7 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
   );
 }
 
-function ExerciseCard({ data, session, exIdx, onSetDone, onSwap }: { data: AppData; session: Session; exIdx: number; onSetDone: (ex: Exercise) => void; onSwap: () => void }) {
+function ExerciseCard({ data, session, exIdx, onSetDone, onSwap, caution = [] }: { data: AppData; session: Session; exIdx: number; onSetDone: (ex: Exercise) => void; onSwap: () => void; caution?: BodyPart[] }) {
   const e = session.exercises[exIdx];
   const ex = getExercise(e.exerciseId, data.customExercises)!;
   const prev = useMemo(() => lastPerformance(data, e.exerciseId, session.id), [data, e.exerciseId, session.id]);
@@ -165,6 +170,7 @@ function ExerciseCard({ data, session, exIdx, onSetDone, onSwap }: { data: AppDa
       <div className="row-between" style={{ alignItems: 'flex-start' }}>
         <div>
           <h3 id={`ex-${exIdx}`} className="ex-name">{ex.name}</h3>
+          {caution.length > 0 && <span className="caution-badge" data-testid={`caution-${exIdx}`}>Easy on your {caution.map((c) => PART_LABEL[c]).join(' & ')}: go lighter or swap</span>}
           <div className="small muted">{e.sets.length} × {e.target}{e.swappedFrom ? ` · swapped from ${getExercise(e.swappedFrom, data.customExercises)?.name}` : ''}</div>
         </div>
         <div className="row" style={{ gap: 0 }}>
@@ -230,9 +236,10 @@ function PickSheet({ title, data, options, onPick, onClose, search }: { title: s
   );
 }
 
-function FinishSheet({ s, total, done, onClose, onSave }: { s: Session; total: number; done: number; onClose: () => void; onSave: (effort: Session['effort'], note: string) => void }) {
+function FinishSheet({ s, total, done, onClose, onSave }: { s: Session; total: number; done: number; onClose: () => void; onSave: (effort: Session['effort'], note: string, feelings: SavedFeel[]) => void }) {
   const [effort, setEffort] = useState<Session['effort']>();
   const [note, setNote] = useState('');
+  const [ignored, setIgnored] = useState<string[]>([]);
   const labels = ['Very easy', 'Easy', 'Solid', 'Hard', 'All-out'];
   return (
     <Sheet title="Nice work" onClose={onClose} dark>
@@ -246,13 +253,45 @@ function FinishSheet({ s, total, done, onClose, onSave }: { s: Session; total: n
           <div className="scale-labels" style={{ color: 'var(--night-ink-2)' }}><span>Very easy</span><span>All-out</span></div>
         </div>
         <div className="field">
-          <label className="label" htmlFor="wk-note">Note <span className="muted">(optional)</span></label>
-          <textarea id="wk-note" className="textarea" enterKeyHint="done" onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.closest('.sheet')?.querySelector('[data-testid="save-workout"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 350); }} style={{ background: 'var(--night-3)', borderColor: 'var(--night-line)' }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="How it went, anything to change next time" />
+          <label className="label" htmlFor="wk-note">How did you feel? <span className="muted">(optional)</span></label>
+          <FeelingNote value={note} onChange={setNote} ignored={ignored} setIgnored={setIgnored} />
         </div>
-        <button className="btn btn-primary btn-lg btn-block" onClick={() => onSave(effort, note)} disabled={done === 0} data-testid="save-workout">{done === 0 ? 'Log at least one set' : 'Save workout'}</button>
+        <button className="btn btn-primary btn-lg btn-block" onClick={() => onSave(effort, note, summarize(extractFeelings(note).filter((t) => !ignored.includes(t.kind + (t.part ?? '')))))} disabled={done === 0} data-testid="save-workout">{done === 0 ? 'Log at least one set' : 'Save workout'}</button>
         <button className="btn btn-ghost btn-block" style={{ color: 'var(--night-ink-2)' }} onClick={onClose} data-testid="back-to-workout">Back to workout</button>
       </div>
     </Sheet>
+  );
+}
+
+/** Note box that highlights feeling words as you type, and lists what it picked up. */
+function FeelingNote({ value, onChange, ignored, setIgnored }: { value: string; onChange: (v: string) => void; ignored: string[]; setIgnored: (v: string[]) => void }) {
+  const back = React.useRef<HTMLDivElement>(null);
+  const tags = extractFeelings(value);
+  const live = tags.filter((t) => !ignored.includes(t.kind + (t.part ?? '')));
+  const picked = summarize(live);
+  const parts: React.ReactNode[] = []; let at = 0;
+  for (const t of tags) { if (t.start > at) parts.push(value.slice(at, t.start)); const off = ignored.includes(t.kind + (t.part ?? '')); parts.push(<mark key={t.start} className={off ? 'off' : ''} data-kind={t.kind}>{value.slice(t.start, t.end)}</mark>); at = t.end; }
+  parts.push(value.slice(at) + '\n');
+  return (
+    <div className="stack" style={{ gap: 8 }}>
+      <div className="hl-wrap">
+        <div ref={back} className="hl-back textarea" aria-hidden>{parts}</div>
+        <textarea id="wk-note" className="textarea hl-input" value={value} onChange={(e) => onChange(e.target.value)} onScroll={(e) => { if (back.current) back.current.scrollTop = e.currentTarget.scrollTop; }} placeholder="e.g. felt strong but my left knee was sore on lunges" enterKeyHint="done" data-testid="wk-note"
+          onFocus={(e) => { const t = e.currentTarget; setTimeout(() => t.closest('.sheet')?.querySelector('[data-testid="save-workout"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 350); }} />
+      </div>
+      {tags.length > 0 && (
+        <div className="stack" style={{ gap: 6 }} data-testid="feelings">
+          <div className="chips">
+            {summarize(tags).map((f) => { const k = f.kind + (f.part ?? ''); const off = ignored.includes(k); return (
+              <button key={k} type="button" className={'feel-chip' + (off ? ' off' : '')} data-kind={f.kind} aria-pressed={!off} onClick={() => setIgnored(off ? ignored.filter((x) => x !== k) : [...ignored, k])} data-testid={`feel-${k}`}>
+                {feelLabel(f)}<span aria-hidden>{off ? ' +' : ' ×'}</span>
+              </button>
+            ); })}
+          </div>
+          <p className="small" style={{ margin: 0, color: 'var(--night-ink-2)' }}>{picked.length ? 'The app will use these to shape your next workouts. Tap one to ignore it.' : 'Nothing will be used. Tap a word to keep it.'}</p>
+        </div>
+      )}
+    </div>
   );
 }
 

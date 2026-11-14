@@ -2,6 +2,7 @@ import { TrainTodayCard } from './FriendsExtras';
 import { EventTodayCard } from './EventsPayments';
 import { ComingUpCard } from '../components/ComingUp';
 import { upcomingAdvice } from '../lib/upcoming';
+import { noteAdvice, feelLabel } from '../lib/feelings';
 import React, { useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Icon, store, useCloud, useData, useSocial, useToast, type Route } from '../components/core';
@@ -85,7 +86,8 @@ export function Home({ go }: { go: (r: Route) => void }) {
   if (checkin?.availableMinutes !== undefined && checkin.availableMinutes < fullMin) { reasons.push(`${checkin.availableMinutes} min free`); preferShort = true; }
   if ((checkin?.soreness ?? 0) >= 4) { reasons.push('very sore'); preferShort = true; }
   const ahead = upcomingAdvice(data, today);
-  const leadShort = (preferShort && (data.settings.suggestShortWhenLow || (checkin?.availableMinutes ?? 999) < fullMin || (checkin?.soreness ?? 0) >= 4)) || !!ahead?.suggestShort;
+  const felt = noteAdvice(data, today);
+  const leadShort = (preferShort && (data.settings.suggestShortWhenLow || (checkin?.availableMinutes ?? 999) < fullMin || (checkin?.soreness ?? 0) >= 4)) || !!ahead?.suggestShort || !!felt?.suggestShort;
 
   // Trigger: Start. Start: the workout card. Move: View Transition morph into the
   // workout header. Settle: workout screen. Reduced motion / unsupported: instant.
@@ -197,6 +199,8 @@ export function Home({ go }: { go: (r: Route) => void }) {
           <div className="why" data-testid="why">
             {ahead && (ahead.suggestShort || ahead.rest) ? (
               <><strong>{ahead.title}.</strong> {ahead.body}</>
+            ) : felt ? (
+              <span data-testid="note-advice"><strong>{felt.headline}.</strong> {felt.body}<span className="chips" style={{ marginTop: 8, display: 'flex' }}>{felt.said.map((f) => <span key={f.kind + (f.part ?? '')} className="feel-chip" data-kind={f.kind} style={{ minHeight: 26, fontSize: 12 }}>{feelLabel(f)}</span>)}</span></span>
             ) : preferShort ? (
               <>You checked in with <strong>{reasons.join(', ')}</strong>. The short version (first 3 exercises, ~{shortMin} min) may fit today better. It still counts.</>
             ) : gap !== null && gap >= 7 ? (

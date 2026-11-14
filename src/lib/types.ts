@@ -81,6 +81,7 @@ export interface Session {
   exercises: SessionExercise[];
   effort?: 1 | 2 | 3 | 4 | 5; // post-workout "how did it feel"
   note?: string;
+  feelings?: import('./feelings').SavedFeel[]; // picked up from the note
 }
 
 export type SkipReason = 'time' | 'energy' | 'sore' | 'unwell' | 'motivation' | 'other';

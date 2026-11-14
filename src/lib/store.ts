@@ -205,13 +205,13 @@ export class Store {
     this.patchSession(sessionId, (s) => ({ ...s, exercises: s.exercises.filter((_, i) => i !== exIdx) }));
   }
 
-  finishSession(sessionId: string, effort?: Session['effort'], note?: string) {
+  finishSession(sessionId: string, effort?: Session['effort'], note?: string, feelings?: import('./feelings').SavedFeel[]) {
     this.update((d) => ({
       ...d,
       rotationIndex: d.rotationIndex + 1,
       // Finishing a session resolves any skip logged for the same day.
       skips: d.skips.filter((k) => k.date !== d.sessions.find((s) => s.id === sessionId)?.plannedFor),
-      sessions: d.sessions.map((s) => (s.id === sessionId ? { ...s, status: 'completed', endedAt: new Date().toISOString(), effort, note: note?.trim() || undefined } : s)),
+      sessions: d.sessions.map((s) => (s.id === sessionId ? { ...s, status: 'completed', endedAt: new Date().toISOString(), effort, note: note?.trim() || undefined, feelings: note?.trim() && feelings?.length ? feelings : undefined } : s)),
     }));
   }
 

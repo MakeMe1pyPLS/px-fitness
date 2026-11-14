@@ -1,3 +1,4 @@
+import { feelLabel, feelingTrends } from '../lib/feelings';
 import { VideoDemo } from '../components/VideoDemo';
 import { SkillLevels } from '../components/SkillLevels';
 import React, { useState } from 'react';
@@ -8,6 +9,20 @@ import { exerciseBests, exerciseSeries, planWindow, sessionVolume, setsDone, wee
 import { getExercise } from '../lib/exercises';
 import { addDays, formatShortDate, minutesBetween, toDateKey, plural } from '../lib/dates';
 import type { AppData, Session } from '../lib/types';
+
+/** How workouts have felt lately, from post-workout notes. */
+function FeelingsCard() {
+  const data = useData();
+  const t = feelingTrends(data.sessions, toDateKey(new Date()));
+  if (!t.length) return null;
+  return (
+    <section className="card stack" data-testid="feelings-card">
+      <h2 className="eyebrow">How workouts felt · 30 days</h2>
+      <div className="chips">{t.map((x) => <span key={x.label} className="feel-chip" data-kind={x.kind} style={{ color: 'var(--ink)' }}>{x.label} <b className="tnum">×{x.count}</b></span>)}</div>
+      <p className="small muted" style={{ margin: 0 }}>Picked up from your workout notes. Your next workout adjusts to the most recent one.</p>
+    </section>
+  );
+}
 
 export function Progress({ go }: { go: (r: Route) => void }) {
   const data = useData();
@@ -53,6 +68,7 @@ export function Progress({ go }: { go: (r: Route) => void }) {
       </div>
 
       <SkillLevels />
+      <FeelingsCard />
       <PhotosMilestones />
 
       <section className="card stack" aria-labelledby="c-h">
@@ -138,7 +154,8 @@ function SessionSheet({ data, id, onClose }: { data: AppData; id: string; onClos
   return (
     <Sheet title={s.name} onClose={onClose}>
       <p className="muted small" style={{ marginBottom: 12 }}>{formatShortDate(s.plannedFor)}{s.endedAt ? ` · ${minutesBetween(s.startedAt, s.endedAt)} min` : ''}{sessionVolume(s) ? ` · ${Math.round(sessionVolume(s)).toLocaleString()} ${unit}` : ''}{s.effort ? ` · effort ${s.effort}/5` : ''}</p>
-      {s.note && <p className="why-box" style={{ marginBottom: 12 }}>{s.note}</p>}
+      {s.note && <p className="why-box" style={{ marginBottom: s.feelings?.length ? 6 : 12 }}>{s.note}</p>}
+      {!!s.feelings?.length && <div className="chips" style={{ marginBottom: 12 }}>{s.feelings.map((f) => <span key={f.kind + (f.part ?? '')} className="feel-chip" data-kind={f.kind} style={{ color: 'var(--ink)', minHeight: 28 }}>{feelLabel(f)}</span>)}</div>}
       <p className="small muted" style={{ marginBottom: 12 }}>Spotted a typo? Edit any value below; it saves right away.</p>
       <div className="stack">
         {s.exercises.map((e, exIdx) => {

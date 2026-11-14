@@ -340,3 +340,21 @@ body::after {
 .sheet-handle { min-height: 40px; }
 .coach-flag { white-space: nowrap; }
 .staff-badge { padding: 12px 14px; border-radius: 14px; border: 1px solid rgba(255, 90, 31, 0.45); background: rgba(255, 90, 31, 0.08); display: grid; gap: 4px; }
+
+/* ── Feeling words in the workout note ──────────────────────────────────── */
+.hl-wrap { position: relative; border-radius: var(--r-md, 12px); background: var(--night-3); }
+.hl-back, .hl-input { font: inherit; font-size: 16px; line-height: 1.5; letter-spacing: normal; white-space: pre-wrap; overflow-wrap: break-word; word-break: normal; }
+.hl-back { position: absolute; inset: 0; overflow: hidden; color: transparent; pointer-events: none; border-color: transparent !important; background: transparent !important; resize: none; }
+.hl-input { position: relative; display: block; width: 100%; background: transparent !important; border-color: var(--night-line) !important; color: var(--night-ink); caret-color: var(--ember); }
+.hl-back mark { color: transparent; border-radius: 4px; padding: 1px 0; box-shadow: 0 0 0 2px var(--hl, rgba(255, 90, 31, 0.3)); background: var(--hl, rgba(255, 90, 31, 0.3)); }
+.hl-back mark[data-kind='pain'], .feel-chip[data-kind='pain'] { --hl: rgba(255, 77, 77, 0.38); }
+.hl-back mark[data-kind='sore'], .feel-chip[data-kind='sore'] { --hl: rgba(255, 150, 70, 0.34); }
+.hl-back mark[data-kind='tired'], .hl-back mark[data-kind='low'], .feel-chip[data-kind='tired'], .feel-chip[data-kind='low'] { --hl: rgba(160, 150, 140, 0.4); }
+.hl-back mark[data-kind='easy'], .feel-chip[data-kind='easy'] { --hl: rgba(255, 200, 90, 0.32); }
+.hl-back mark[data-kind='hard'], .feel-chip[data-kind='hard'] { --hl: rgba(255, 110, 60, 0.38); }
+.hl-back mark[data-kind='good'], .hl-back mark[data-kind='energized'], .feel-chip[data-kind='good'], .feel-chip[data-kind='energized'] { --hl: rgba(110, 200, 150, 0.32); }
+.hl-back mark.off { background: transparent; box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.25); }
+.feel-chip { min-height: 34px; padding: 0 12px; border-radius: 999px; border: 0; background: var(--hl); color: var(--night-ink, #f4efe8); font-weight: 700; font-size: var(--t-sm); }
+.feel-chip.off { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2); color: var(--night-ink-2, #a29c94); text-decoration: line-through; }
+.caution-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; background: rgba(255, 77, 77, 0.16); color: #ff8f8f; }
+.note-advice { border-left: 3px solid var(--ember); padding: 10px 12px; border-radius: 10px; background: rgba(255, 90, 31, 0.07); }

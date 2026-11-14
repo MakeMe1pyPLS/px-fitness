@@ -48,7 +48,7 @@ const TOOL = {
   },
 };
 
-interface Body { messages: { role: 'user' | 'assistant'; content: string }[]; context: { name?: string; recall?: string; todaySession?: string; opener?: string; today?: string; upcoming?: string } }
+interface Body { messages: { role: 'user' | 'assistant'; content: string }[]; context: { name?: string; recall?: string; todaySession?: string; opener?: string; today?: string; upcoming?: string; lastNote?: string } }
 
 export default async function handler(req: Request): Promise<Response> {
   if (req.method !== 'POST') return fail('Method not allowed', 405);
@@ -73,7 +73,7 @@ export default async function handler(req: Request): Promise<Response> {
 
   const c = body.context ?? {};
   const clip = (v: unknown, n: number) => String(v ?? '').slice(0, n);
-  const ctx = `Context (from the app, not the user): name=${clip(c.name, 40)}; ${c.recall ? `you already said to them: "${clip(c.recall, 200)}"; ` : ''}today's session: ${clip(c.todaySession, 60) || 'rest day'}; the app opened by asking: "${clip(c.opener, 120)}"; today is ${/^\d{4}-\d{2}-\d{2}$/.test(String(c.today)) ? c.today : 'unknown'}; already planned around: ${clip(c.upcoming, 200) || 'nothing'}.`;
+  const ctx = `Context (from the app, not the user): name=${clip(c.name, 40)}; ${c.recall ? `you already said to them: "${clip(c.recall, 200)}"; ` : ''}today's session: ${clip(c.todaySession, 60) || 'rest day'}; the app opened by asking: "${clip(c.opener, 120)}"; today is ${/^\d{4}-\d{2}-\d{2}$/.test(String(c.today)) ? c.today : 'unknown'}; already planned around: ${clip(c.upcoming, 200) || 'nothing'}; after their last workout they said they felt: ${clip(c.lastNote, 120) || 'nothing noted'}.`;
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': key, 'anthropic-version': '2023-06-01' },
