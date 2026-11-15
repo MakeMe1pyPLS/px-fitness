@@ -360,7 +360,7 @@ body::after {
 .note-advice { border-left: 3px solid var(--ember); padding: 10px 12px; border-radius: 10px; background: rgba(255, 90, 31, 0.07); }
 
 /* ── Generative background ─────────────────────────────────────────────── */
-.backdrop { position: fixed; inset: 0; z-index: 0; pointer-events: none; display: block; }
+.backdrop { position: fixed; inset: 0; z-index: -1; pointer-events: none; display: block; }
 html[data-bg='canvas'] body::before, html[data-bg='canvas'] body::after { display: none; }
 .bg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .bg-opt { display: grid; gap: 6px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); color: var(--ink); font-size: 12px; font-weight: 700; text-align: center; }

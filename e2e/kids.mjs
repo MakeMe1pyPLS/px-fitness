@@ -31,6 +31,13 @@ await step('background: a design is drawn and settings switch it', async () => {
   assert.equal(await page.getByTestId('backdrop').getAttribute('data-style'), 'orbits');
   assert.equal(await page.getByTestId('backdrop').getAttribute('data-mode'), 'fidget');
 });
+await step('background stays behind every screen (never covers text)', async () => {
+  const z = await page.getByTestId('backdrop').evaluate((c) => getComputedStyle(c).zIndex);
+  assert.ok(Number(z) < 0, `backdrop z-index ${z}`);
+  // the canvas must paint before (under) plain, unpositioned text in the app
+  const under = await page.evaluate(() => { const c = document.querySelector('.backdrop'); const t = document.querySelector('main h1, main h2, main p'); return !!c && !!t && c.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING; });
+  assert.ok(under);
+});
 await step('a new design each time the app opens (auto)', async () => {
   await page.getByTestId('bg-auto').click();
   const seen = new Set();
