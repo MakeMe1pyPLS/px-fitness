@@ -10,7 +10,7 @@ const html = readFileSync('.e2e-cloud/index.html');
 const plainHtml = readFileSync('dist/index.html');
 
 // ── fake backend state ────────────────────────────────────────────────────
-const db = { users: new Map(), userData: new Map(), subs: new Map(), aiCalls: [], aiMode: 'ok', checkoutCalls: 0 };
+const db = { users: new Map(), userData: new Map(), subs: new Map(), aiCalls: [], aiMode: 'ok', checkoutCalls: 0, photoCalls: [] };
 const b64u = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const jwt = (u) => `h.${b64u({ sub: u.id, email: u.email, exp: Math.floor(Date.now() / 1000) + 3600 })}.s`;
 const userFromAuth = (h) => { try { const p = JSON.parse(Buffer.from((h || '').replace('Bearer ', '').split('.')[1], 'base64url').toString()); return [...db.users.values()].find((u) => u.id === p.sub) ?? null; } catch { return null; } };
@@ -38,6 +38,15 @@ const server = createServer(async (req, res) => {
       const turns = messages.filter((m) => m.role === 'user').length;
       if (turns < 2) return send(200, { reply: 'Thanks. How did you sleep, and how much time do you have today?', checkin: null, done: false });
       return send(200, { reply: 'Saved. Keep it light today and go easy on that knee.', checkin: { mood: 2, energy: 2, sleepHours: 6, availableMinutes: 20, remember: 'knee felt cranky' }, done: true });
+    }
+    if (u.pathname === '/api/food-photo') {
+      const b = JSON.parse(body);
+      db.photoCalls.push({ mediaType: b.mediaType, size: b.image.length, note: b.note });
+      if (!['active', 'trialing'].includes(db.subs.get(user.id)?.status)) return send(402, { error: 'Photo scanning is part of PX Plus.', code: 'not_subscribed' });
+      return send(200, { not_food: false, meal_name: 'Turkey sandwich & apple', caveat: 'Mayo amount is a guess.', items: [
+        { name: 'Turkey sandwich', grams: 220, kcal: 480, protein_g: 32, carbs_g: 44, fat_g: 18, confidence: 'medium' },
+        { name: 'Apple', grams: 180, kcal: 94, protein_g: 0.5, carbs_g: 25, fat_g: 0.3, confidence: 'high' },
+      ] });
     }
     return send(404, {});
   }
@@ -193,6 +202,35 @@ await step('subscribers get the AI coach, and it saves a structured check-in', a
   assert.equal(last[0].role, 'user');
   assert.ok(!last.some((m) => /Good (morning|afternoon|evening)|How are you feeling today/.test(m.content)));
   await page.getByTestId('chat-done').click();
+});
+
+await step('PX Plus: scan a food photo, edit grams, log calories', async () => {
+  // A real (tiny) PNG so the app's resize step runs for real.
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAEAAAAAwCAIAAAAuKetIAAAAV0lEQVR4Xu3RAQkAIQAEQTXXBzOiseRTLMJMgjt2nv2Nl62Xx/8cqClQU6CmQE2BmgI1BWoK1BSoKVBToKZATYGaAjUFagrUFKgpUFOgpkBNgZoCNQVqF6WIAdzFYK+7AAAAAElFTkSuQmCC', 'base64');
+  await page.goto(origin + '#diet-meals');
+  await page.getByTestId('scan-photo').click();
+  await page.getByTestId('photo-scan').waitFor();
+  assert.equal(await page.getByTestId('scan-locked').count(), 0, 'Plus users get the scanner');
+  await page.getByTestId('scan-camera-input').setInputFiles({ name: 'meal.png', mimeType: 'image/png', buffer: png });
+  await page.getByTestId('scan-note').fill('extra mayo');
+  await page.getByTestId('scan-analyze').click();
+  await page.getByTestId('scan-result').waitFor();
+  assert.equal(await page.getByTestId('scan-kcal').textContent(), '574');
+  const sent = db.photoCalls.at(-1);
+  assert.equal(sent.mediaType, 'image/jpeg', 'converted to JPEG');
+  assert.ok(sent.size < 200000, 'downsized before upload');
+  assert.equal(sent.note, 'extra mayo');
+  await page.getByTestId('scan-grams-0').fill('110'); // half the sandwich
+  assert.equal(await page.getByTestId('scan-kcal').textContent(), '334');
+  await page.getByTestId('photo-scan').screenshot({ path: 'e2e/shots/c-photo-scan.png' });
+  await page.getByTestId('scan-log').click();
+  await page.getByTestId('day-kcal').waitFor();
+  assert.match(await page.getByTestId('day-kcal').textContent(), /334 kcal/);
+  assert.match(await page.getByTestId('log-kcal').first().textContent(), /Photo estimate: 334 kcal/);
+  const e = await page.evaluate(() => globalThis.__kova.get().nutrition.log.at(-1));
+  assert.equal(e.source, 'photo');
+  assert.deepEqual(e.items, [{ name: 'Turkey sandwich', grams: 110 }, { name: 'Apple', grams: 180 }]);
+  await page.goto(origin + '#home');
 });
 
 await step('crisis messages are handled on the device and never sent to the AI', async () => {

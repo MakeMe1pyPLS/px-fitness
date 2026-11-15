@@ -226,6 +226,12 @@ async function route(url: URL, method: string, body: any): Promise<Response> { /
   if (p === '/api/portal') return json(200, { url: `${back}#you` });
   if (p === '/api/connect') { if (body?.action === 'status') { const x = db.payouts.find((y) => y.coach_id === ME); return json(200, { connected: !!x, chargesEnabled: !!x?.charges_enabled }); } if (!db.payouts.some((y) => y.coach_id === ME)) db.payouts.push({ coach_id: ME, stripe_account_id: 'acct_demo_me', charges_enabled: true }); save(); return json(200, { url: `${back}?payouts=done#friends` }); }
   if (p === '/api/coach-checkout') { const o = db.offers.find((x) => x.id === body.offerId); if (!o) return json(404, { error: 'That option isn’t available anymore.' }); db.payments.unshift({ id: uuid(), coach_id: o.coach_id, client_id: ME, offer_name: o.name, amount_cents: o.price_cents, currency: 'usd', status: 'paid', note: body.note || null, created_at: new Date().toISOString() }); save(); return json(200, { url: `${back}?coachpay=success#friends` }); }
+  // Demo: a fixed SAMPLE answer (the photo is not analysed). The UI labels it.
+  if (p === '/api/food-photo') return json(200, { demo: true, not_food: false, meal_name: 'Sample: chicken, rice & broccoli', caveat: 'Demo sample, not from your photo.', items: [
+    { name: 'Grilled chicken breast', grams: 150, kcal: 248, protein_g: 46.5, carbs_g: 0, fat_g: 5.4, confidence: 'medium' },
+    { name: 'White rice, cooked', grams: 180, kcal: 234, protein_g: 4.9, carbs_g: 50.8, fat_g: 0.5, confidence: 'medium' },
+    { name: 'Steamed broccoli', grams: 90, kcal: 31, protein_g: 2.1, carbs_g: 6.3, fat_g: 0.3, confidence: 'high' },
+  ] });
   if (p === '/api/checkin') return json(503, { error: 'The AI coach isn’t part of the demo.', code: 'not_configured' });
   return json(404, { error: 'Not in demo' });
 }

@@ -8,7 +8,7 @@
 //   STRIPE_SECRET_KEY           SECRET: sk_test_... while testing
 //   STRIPE_WEBHOOK_SECRET       SECRET: whsec_... from the webhook endpoint (your account's events)
 //   STRIPE_CONNECT_WEBHOOK_SECRET SECRET: whsec_... from the same URL's "connected accounts" endpoint
-//   ANTHROPIC_API_KEY           SECRET: for the AI check-in
+//   ANTHROPIC_API_KEY           SECRET: for the AI check-in and the food photo scan
 //   PX_PRICE_CENTS              optional, defaults to 2500 ($25.00)
 
 export const env = (k: string) => (typeof process !== 'undefined' ? process.env[k] : undefined) ?? '';

@@ -253,6 +253,13 @@ export interface MealLogEntry {
   fullness?: number; // 1–5
   rating?: number; // 1–5
   cost?: number;
+  // Set when the meal was logged from a photo estimate (or typed numbers).
+  kcal?: number;
+  p?: number;
+  c?: number;
+  f?: number;
+  source?: 'photo';
+  items?: { name: string; grams: number }[];
   createdAt: string;
 }
 

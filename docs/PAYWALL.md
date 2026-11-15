@@ -15,6 +15,7 @@
 | Start checkout / billing portal | `api/checkout.ts`, `api/portal.ts` | Uses Stripe secret + Supabase service role |
 | Mark accounts paid / canceled | `api/stripe-webhook.ts` (signature-checked) | Uses webhook secret + service role |
 | AI coach | `api/checkin.ts` | Uses Anthropic key |
+| Food photo scan | `api/food-photo.ts` | Uses Anthropic key (vision); shares the daily AI cap; photo is not stored |
 | Database | `supabase/migrations/0001_accounts_paywall.sql` | — |
 
 If `PX_SUPABASE_URL` isn't set at build time, accounts and the paywall are hidden and

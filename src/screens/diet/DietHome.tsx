@@ -7,6 +7,7 @@ import { recipe as getRecipe, RECIPES } from '../../lib/foods';
 import { toDateKey, formatShortDate } from '../../lib/dates';
 import type { AppData, MealType } from '../../lib/types';
 import { NutrientRow, RecipeSheet, money } from './shared';
+import { PhotoScanSheet } from './PhotoScan';
 
 const MT_LABEL: Record<MealType, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
 
@@ -176,15 +177,22 @@ export function MealsView({ go }: { go: (r: Route) => void }) {
   const toast = useToast();
   const [open, setOpen] = useState<string | null>(null);
   const [outOpen, setOutOpen] = useState(false);
+  const [scan, setScan] = useState(false);
   const active = data.nutrition.plans.find((x) => x.status === 'active');
   const details = active ? planDetails(data, active) : null;
   const today = toDateKey(new Date());
   const log = data.nutrition.log.filter((l) => l.date === today);
+  // Calories known for today: photo/typed estimates plus one serving of each logged recipe.
+  const known = log.map((l) => (l.kcal !== undefined ? { kcal: l.kcal, p: l.p ?? 0 } : l.recipeId && getRecipe(l.recipeId) ? (() => { const r = getRecipe(l.recipeId!)!; const n = nutrientsOf(r.ingredients, r.servings); return { kcal: n.kcal, p: n.p }; })() : null));
+  const dayKcal = known.reduce((n, k) => n + (k?.kcal ?? 0), 0);
+  const dayP = known.reduce((n, k) => n + (k?.p ?? 0), 0);
+  const unknownCount = known.filter((k) => !k).length;
   return (
     <div className="page">
       <SubHead title="Today’s meals" go={go} />
       <section className="card stack">
-        <h2 className="eyebrow">Logged today</h2>
+        <div className="row-between"><h2 className="eyebrow">Logged today</h2>{prefsOf(data).showNumbers && dayKcal > 0 && <span className="small tnum" data-testid="day-kcal"><b>{dayKcal}</b> kcal · {dayP} g protein{unknownCount ? ` + ${unknownCount} not estimated` : ''}</span>}</div>
+        <button className="btn btn-primary" onClick={() => setScan(true)} data-testid="scan-photo"><Icon.camera /> Scan a photo of your food</button>
         {log.length === 0 && <p className="small muted">Nothing logged yet. Logging is optional; it helps suggestions learn what you like.</p>}
         {log.map((l) => (
           <div key={l.id} className="stack" style={{ gap: 6, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
@@ -193,6 +201,7 @@ export function MealsView({ go }: { go: (r: Route) => void }) {
               <span className="muted">How full afterwards?</span>
               {[1, 2, 3, 4, 5].map((k) => <button key={k} className="chip" style={{ minHeight: 36, padding: '0 12px' }} aria-pressed={l.fullness === k} aria-label={`Fullness ${k} of 5`} onClick={() => store.updateMealLog(l.id, { fullness: k })}>{k}</button>)}
             </div>
+            {l.kcal !== undefined && prefsOf(data).showNumbers && <span className="small muted tnum" data-testid="log-kcal">{l.source === 'photo' ? 'Photo estimate: ' : ''}{l.kcal} kcal · {l.p ?? 0}g protein · {l.c ?? 0}g carbs · {l.f ?? 0}g fat</span>}
             {l.cost !== undefined && <span className="small muted">Spent {money(data, l.cost)}</span>}
           </div>
         ))}
@@ -219,6 +228,7 @@ export function MealsView({ go }: { go: (r: Route) => void }) {
       </section>
       {open && <RecipeSheet data={data} recipeId={open} onClose={() => setOpen(null)} />}
       {outOpen && <LogOutSheet data={data} onClose={() => setOutOpen(false)} />}
+      {scan && <PhotoScanSheet go={go} onClose={() => setScan(false)} />}
     </div>
   );
 }
@@ -232,7 +242,7 @@ function LogOutSheet({ data, onClose }: { data: AppData; onClose: () => void }) 
       <div className="stack-lg">
         <div className="field"><label className="label" htmlFor="mo-n">What did you have?</label><input id="mo-n" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Chicken burrito bowl" /></div>
         <div className="field"><label className="label" htmlFor="mo-c">Cost <span className="muted">(optional, counts toward your eating-out budget)</span></label><input id="mo-c" className="input" inputMode="decimal" type="number" min={0} value={cost} onChange={(e) => setCost(e.target.value)} /></div>
-        <p className="small muted">Restaurant nutrition isn’t estimated here unless the restaurant publishes it.</p>
+        <p className="small muted">Want calories for it? Use “Scan a photo of your food” instead (PX Plus).</p>
         <button className="btn btn-ink btn-lg" disabled={!name.trim()} onClick={() => {
           const c = cost ? Math.max(0, Number(cost)) : undefined;
           store.logMeal({ name: name.trim(), where: 'out', date: toDateKey(new Date()), cost: c });

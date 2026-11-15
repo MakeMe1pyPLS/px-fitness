@@ -269,6 +269,10 @@ export class Cloud {
     return body.url as string;
   }
 
+  async scanFood(image: string, mediaType: string, note: string) {
+    return this.callApi('/api/food-photo', { image, mediaType, note }) as Promise<unknown>;
+  }
+
   async aiCheckin(messages: { role: 'user' | 'assistant'; content: string }[], context: Record<string, string>) {
     return this.callApi('/api/checkin', { messages, context }) as Promise<{ reply: string; checkin: Record<string, unknown> | null; done: boolean }>;
   }

@@ -136,6 +136,14 @@ await step('recipe sheet facts: % uses FDA values when no body stats are set', a
   await page.getByTestId('sheet-close').click();
 });
 
+await step('photo scan explains it needs PX Plus when accounts are off', async () => {
+  await page.goto(url + '#diet-meals');
+  await page.getByTestId('scan-photo').click();
+  await page.getByTestId('scan-locked').waitFor();
+  assert.match(await page.getByTestId('scan-locked').innerText(), /part of PX Plus[\s\S]*aren’t switched on/);
+  await page.getByTestId('sheet-close').click();
+});
+
 await step('no horizontal overflow and no runtime errors', async () => {
   assert.equal(await overflow(page), 0);
   await shot(page, 'm05-plan-full');

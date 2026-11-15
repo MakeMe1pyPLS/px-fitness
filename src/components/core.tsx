@@ -257,6 +257,7 @@ export const Icon = {
   swap: (p: { size?: number }) => <svg width={p.size ?? 20} height={p.size ?? 20} viewBox="0 0 24 24" aria-hidden><path d="M7 4L3 8l4 4" {...P} /><path d="M3 8h14" {...P} /><path d="M17 20l4-4-4-4" {...P} /><path d="M21 16H7" {...P} /></svg>,
   back: (p: { size?: number }) => <svg width={p.size ?? 22} height={p.size ?? 22} viewBox="0 0 24 24" aria-hidden><path d="M15 5l-7 7 7 7" {...P} /></svg>,
   more: (p: { size?: number }) => <svg width={p.size ?? 22} height={p.size ?? 22} viewBox="0 0 24 24" aria-hidden><circle cx="5" cy="12" r="1.6" fill="currentColor" /><circle cx="12" cy="12" r="1.6" fill="currentColor" /><circle cx="19" cy="12" r="1.6" fill="currentColor" /></svg>,
+  camera: (p: { size?: number }) => <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" aria-hidden><path d="M4 8h3l2-3h6l2 3h3v11H4z" {...P} /><circle cx="12" cy="13" r="3.5" {...P} /></svg>,
   trash: (p: { size?: number }) => <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" aria-hidden><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" {...P} /></svg>,
   bolt: (p: { size?: number }) => <svg width={p.size ?? 18} height={p.size ?? 18} viewBox="0 0 24 24" aria-hidden><path d="M13 3L5 14h6l-1 7 8-11h-6l1-7z" {...P} /></svg>,
   diet: (p: { size?: number }) => <svg width={p.size ?? 24} height={p.size ?? 24} viewBox="0 0 24 24" aria-hidden><path d="M3 12h18a9 9 0 0 1-18 0z" {...P} /><path d="M8 8c0-2 2-2 2-4M13 8c0-2 2-2 2-4" {...P} /></svg>,
