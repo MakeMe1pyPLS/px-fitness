@@ -52,21 +52,27 @@ await step('Kids Zone from a workout: games respond, workout keeps running', asy
   await page.getByTestId('start-full').first().click();
   await page.getByTestId('open-kids').click();
   await page.getByTestId('kids-zone').waitFor();
-  await page.getByTestId('kids-bounce').click();
-  await tapCanvas(0.5, 0.3); await tapCanvas(0.3, 0.2); await tapCanvas(0.7, 0.25);
-  await page.getByTestId('kids-score').filter({ hasText: '3 balls' }).waitFor();
-  await page.waitForTimeout(1200);
-  await page.screenshot({ path: 'e2e/shots/kids-bounce.png' });
-  await page.getByTestId('kids-catch').click(); await page.waitForTimeout(1500);
-  await page.screenshot({ path: 'e2e/shots/kids-catch.png' });
-  await page.getByTestId('kids-sparkle').click();
-  const b = await page.getByTestId('kids-canvas').boundingBox();
-  await page.mouse.move(b.x + 60, b.y + 120); await page.mouse.down();
-  for (let i = 0; i < 20; i++) await page.mouse.move(b.x + 60 + i * 12, b.y + 120 + Math.sin(i / 3) * 60);
-  await page.mouse.up(); await page.waitForTimeout(300);
-  await page.screenshot({ path: 'e2e/shots/kids-sparkle.png' });
+  await page.getByTestId('kids-plinko').click();
+  for (let i = 0; i < 10; i++) { await tapCanvas(0.15 + i * 0.07, 0.06); await page.waitForTimeout(120); }
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: 'e2e/shots/kids-plinko.png' });
+  await page.getByTestId('kids-over').waitFor({ timeout: 20000 });
+  const final = Number(await page.getByTestId('kids-final').innerText());
+  assert.ok(final >= 50, `scored ${final}`);
+  assert.equal(await page.evaluate(() => Number(localStorage.getItem('px:kids-best:plinko'))), final);
+  await page.getByText('New best!').waitFor();
+  await page.screenshot({ path: 'e2e/shots/kids-over.png' });
+  await page.getByTestId('kids-again').click();
+  await page.getByTestId('kids-over').waitFor({ state: 'detached' });
+  assert.match(await page.getByTestId('kids-score').innerText(), new RegExp(`^0\\s*Best ${final}`));
+  await page.getByTestId('kids-merge').click();
+  for (let i = 0; i < 8; i++) { await tapCanvas(0.3 + (i % 3) * 0.2, 0.3); await page.waitForTimeout(450); }
+  await page.waitForTimeout(1500);
+  await page.screenshot({ path: 'e2e/shots/kids-merge.png' });
   await page.getByTestId('kids-bubbles').click(); await page.waitForTimeout(2500);
   await page.screenshot({ path: 'e2e/shots/kids-bubbles.png' });
+  await page.getByTestId('kids-catch').click(); await page.waitForTimeout(2000);
+  await page.screenshot({ path: 'e2e/shots/kids-catch.png' });
 });
 await step('a quick tap does not exit; a 2-second hold does', async () => {
   await page.getByTestId('kids-exit').click();

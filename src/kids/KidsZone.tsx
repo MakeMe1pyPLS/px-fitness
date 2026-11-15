@@ -4,24 +4,35 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Portal } from '../components/core';
-import { GAMES, type Fx, type Game, type GameId } from './games';
+import { GAMES, type Fx, type Game, type GameId, type RoundState } from './games';
 
 let audio: AudioContext | null = null;
-function popSound(pitch = 1, on = true) {
+// One major-pentatonic scale, so every sound fits with every other one.
+const SCALE = [0, 2, 4, 7, 9];
+function softNote(step: number, vol = 0.6, on = true) {
   if (!on) return;
   try {
     audio ??= new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-    const o = audio.createOscillator(), g = audio.createGain(), t = audio.currentTime;
-    o.type = 'sine'; o.frequency.setValueAtTime(380 * pitch, t); o.frequency.exponentialRampToValueAtTime(900 * pitch, t + 0.07);
-    g.gain.setValueAtTime(0.16, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
-    o.connect(g).connect(audio.destination); o.start(t); o.stop(t + 0.13);
+    const s = Math.max(0, Math.round(step)), semis = SCALE[s % 5] + 12 * Math.floor(s / 5);
+    const f = 392 * 2 ** (semis / 12), t = audio.currentTime;
+    const o = audio.createOscillator(), o2 = audio.createOscillator(), g = audio.createGain();
+    o.type = 'sine'; o2.type = 'triangle'; o.frequency.value = f; o2.frequency.value = f * 2;
+    const g2 = audio.createGain(); g2.gain.value = 0.15;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.09 * vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    o.connect(g); o2.connect(g2).connect(g); g.connect(audio.destination);
+    o.start(t); o2.start(t); o.stop(t + 0.95); o2.stop(t + 0.95);
   } catch { /* no audio */ }
 }
+const bestKey = (g: string) => `px:kids-best:${g}`;
+const getBest = (g: string) => Number(localStorage.getItem(bestKey(g)) ?? 0) || 0;
 
 export function KidsZone({ onExit }: { onExit: () => void }) {
-  const [game, setGame] = useState<GameId>(() => (localStorage.getItem('px:kids-game') as GameId) || 'bubbles');
+  const [game, setGame] = useState<GameId>(() => { const g = localStorage.getItem('px:kids-game'); return GAMES.some((x) => x.id === g) ? g as GameId : 'merge'; });
   const [sound, setSound] = useState(() => localStorage.getItem('px:kids-sound') !== 'off');
-  const [score, setScore] = useState(0);
+  const [st, setSt] = useState<RoundState>({ score: 0, over: false, info: '' });
+  const [best, setBest] = useState(0);
+  const [newBest, setNewBest] = useState(false);
+  const gameRef = useRef<Game | null>(null);
   const [gate, setGate] = useState(false);
   const cv = useRef<HTMLCanvasElement>(null);
   const soundRef = useRef(sound); soundRef.current = sound;
@@ -31,10 +42,11 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     localStorage.setItem('px:kids-game', game);
     const c = cv.current!; const ctx = c.getContext('2d')!;
-    const fx: Fx = { pop: (p) => popSound(p, soundRef.current), buzz: (ms = 10) => { try { navigator.vibrate?.(ms); } catch { /* ignore */ } } };
+    const fx: Fx = { note: (n, v) => softNote(n, v, soundRef.current), buzz: (ms = 10) => { try { navigator.vibrate?.(ms); } catch { /* ignore */ } } };
     const def = GAMES.find((g) => g.id === game)!;
-    const g: Game = def.make(fx);
-    let W = 0, H = 0, raf = 0, last = 0, shown = -1;
+    const g: Game = def.make(fx); gameRef.current = g;
+    let W = 0, H = 0, raf = 0, last = 0, shown = '';
+    let b = getBest(game), wasOver = false; setBest(b); setNewBest(false);
     const size = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2), r = c.getBoundingClientRect();
       W = r.width; H = r.height; c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); g.resize(W, H);
@@ -44,7 +56,13 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
       const dt = Math.min(3, (now - (last || now)) / 16.67); last = now;
       g.step(dt);
       ctx.clearRect(0, 0, W, H); g.draw(ctx);
-      const s = g.score(); if (s !== shown) { shown = s; setScore(s); }
+      const s = g.state(); const key = `${s.score}|${s.over}|${s.info}`;
+      if (key !== shown) {
+        shown = key; setSt(s);
+        if (s.over && !wasOver) { if (s.score > b) { b = s.score; localStorage.setItem(bestKey(game), String(b)); setBest(b); setNewBest(true); } }
+        if (!s.over && wasOver) setNewBest(false);
+        wasOver = s.over;
+      }
     };
     size(); raf = requestAnimationFrame(loop);
     const pt = (e: PointerEvent) => { const r = c.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top, id: e.pointerId }; };
@@ -56,7 +74,6 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
     return () => { cancelAnimationFrame(raf); c.removeEventListener('pointerdown', dn); c.removeEventListener('pointermove', mv); c.removeEventListener('pointerup', up); c.removeEventListener('pointercancel', up); window.removeEventListener('resize', size); };
   }, [game]);
 
-  const def = GAMES.find((g) => g.id === game)!;
   return (
     <Portal>
       <div className="kids" role="dialog" aria-modal="true" aria-label="Kids Zone" data-testid="kids-zone">
@@ -66,12 +83,25 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
             {GAMES.map((g) => <button key={g.id} role="tab" aria-selected={game === g.id} className="kids-tab" onClick={() => setGame(g.id)} data-testid={`kids-${g.id}`}><span aria-hidden className="kids-emoji">{g.emoji}</span><span>{g.name}</span></button>)}
           </div>
         </div>
+        <div className="kids-hint" data-testid="kids-hint">{st.info}</div>
         <canvas ref={cv} className="kids-canvas" data-game={game} data-testid="kids-canvas" />
         <div className="kids-bottom">
-          <span className="kids-score" aria-live="polite" data-testid="kids-score">{def.unit ? `${score} ${def.unit}` : ''}</span>
+          <span className="kids-score" data-testid="kids-score"><b className="tnum">{st.score}</b><small>Best {Math.max(best, st.over ? 0 : best)}</small></span>
+          <span className="grow" />
           <button className="kids-sound" onClick={() => { const v = !sound; setSound(v); localStorage.setItem('px:kids-sound', v ? 'on' : 'off'); }} aria-pressed={sound} aria-label={sound ? 'Sound on' : 'Sound off'}>{sound ? '🔊' : '🔇'}</button>
           <HoldExit onExit={onExit} />
         </div>
+        {st.over && (
+          <div className="kids-over" data-testid="kids-over">
+            <div className="kids-over-card">
+              <span className="kids-over-emoji" aria-hidden>{newBest ? '🏆' : '🌟'}</span>
+              <b>{newBest ? 'New best!' : 'Great playing!'}</b>
+              <span className="kids-over-score tnum" data-testid="kids-final">{st.score}</span>
+              <span className="small">Best: {best}</span>
+              <button className="kids-again" onClick={() => gameRef.current?.down({ x: 0, y: 0, id: -1 })} data-testid="kids-again">Play again</button>
+            </div>
+          </div>
+        )}
         {gate && <GrownUpGate onPass={onExit} onCancel={() => setGate(false)} />}
       </div>
     </Portal>
