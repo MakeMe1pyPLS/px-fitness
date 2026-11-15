@@ -4,6 +4,7 @@ import { App } from './App';
 import './styles/app.css';
 import './styles/hud.css';
 import { installFx } from './lib/fx';
+import { Backdrop } from './components/Backdrop';
 import { installMotionTokens } from './lib/motion';
 import { cloud } from './components/core';
 import { parseAuthHash } from './lib/cloud';
@@ -43,4 +44,4 @@ if (cloudEnabled()) {
   addEventListener('pagehide', () => { void cloud.flush(); });
 }
 
-createRoot(document.getElementById('root')!).render(<React.StrictMode><App /></React.StrictMode>);
+createRoot(document.getElementById('root')!).render(<React.StrictMode><Backdrop /><App /></React.StrictMode>);

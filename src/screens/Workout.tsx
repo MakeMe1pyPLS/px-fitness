@@ -1,5 +1,6 @@
 import { VideoDemo, hasVideo } from '../components/VideoDemo';
 import { MiniPops } from '../components/Fidget';
+import { KidsZone } from '../kids/KidsZone';
 import { toDateKey } from '../lib/dates';
 import { extractFeelings, exerciseLoads, feelLabel, noteAdvice, summarize, PART_LABEL, type BodyPart, type SavedFeel } from '../lib/feelings';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -28,6 +29,7 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
   const now = useNow(1000);
   const toast = useToast();
   const [rest, setRest] = useState<{ until: number; total: number } | null>(null);
+  const [kids, setKids] = useState(false);
   const [sheet, setSheet] = useState<{ kind: 'swap' | 'add' | 'finish' | 'menu'; exIdx?: number } | null>(null);
   const [confirmEnd, setConfirmEnd] = useState(false);
   const restAlerted = useRef(false);
@@ -65,7 +67,10 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
           <div className="small muted" style={{ fontWeight: 700 }}>{s.name}</div>
           <div className="clock" aria-label={`Elapsed ${fmtClock(elapsed)}`} role="timer">{fmtClock(elapsed)}</div>
         </div>
-        <button className="icon-btn" aria-label="Workout options" onClick={() => setSheet({ kind: 'menu' })} data-testid="wk-menu"><Icon.more /></button>
+        <div className="row" style={{ gap: 4 }}>
+          <button className="kids-btn" aria-label="Kids Zone: games for your child while you train" onClick={() => setKids(true)} data-testid="open-kids">Kids</button>
+          <button className="icon-btn" aria-label="Workout options" onClick={() => setSheet({ kind: 'menu' })} data-testid="wk-menu"><Icon.more /></button>
+        </div>
       </header>
       <div style={{ padding: '0 16px' }}>
         <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label="Sets completed"><div className="progress-fill" style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
@@ -102,6 +107,7 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
         </div>
       )}
 
+      {kids && <KidsZone onExit={() => setKids(false)} />}
       {sheet?.kind === 'menu' && (
         <Sheet title="Workout" onClose={() => setSheet(null)} dark>
           <div className="stack">

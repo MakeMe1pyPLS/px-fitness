@@ -1,3 +1,4 @@
+import { LookFeel } from '../components/LookFeel';
 import { DEMO, realCloudConfigured, cloudEnabled } from '../config';
 import { startDemo, exitDemo } from '../lib/demo';
 import React, { useState } from 'react';
@@ -102,6 +103,8 @@ export function You({ go }: { go: (r: Route) => void }) {
         )}
         {data.checkinMemory.length > 0 && <button className="btn btn-ghost btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => store.clearMemory()}>Forget all</button>}
       </section>
+
+      <LookFeel />
 
       <section className="card">
         <h2 className="eyebrow">Accessibility</h2>

@@ -18,6 +18,7 @@ import { budgetSummary } from '../lib/nutrition';
 import { withViewTransition } from '../lib/motion';
 import { BRAND } from '../brand';
 import { FidgetPad } from '../components/Fidget';
+import { KidsZone } from '../kids/KidsZone';
 import { campPhase } from '../lib/combat';
 import { buzz } from '../lib/fx';
 import type { AppData } from '../lib/types';
@@ -45,6 +46,20 @@ function activeWeeks(data: AppData, today: string) {
 }
 
 const EXP: Record<string, string> = { beginner: 'beginner friendly', intermediate: 'intermediate', advanced: 'advanced' };
+
+/** Training with a little one around? Games they can play on your phone. */
+function KidsCard() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button className="card card-press kids-card row-between" onClick={() => setOpen(true)} data-testid="kids-card">
+        <span className="stack" style={{ gap: 2, textAlign: 'left' }}><span className="eyebrow">Kids Zone</span><b>Kids with you? Games they can play while you train</b></span>
+        <span className="kids-card-art" aria-hidden>🫧🏀⭐</span>
+      </button>
+      {open && <KidsZone onExit={() => setOpen(false)} />}
+    </>
+  );
+}
 
 export function Home({ go }: { go: (r: Route) => void }) {
   const data = useData();
@@ -245,6 +260,8 @@ export function Home({ go }: { go: (r: Route) => void }) {
           <span aria-hidden style={{ transform: 'scaleX(-1)', display: 'inline-flex' }}><Icon.back /></span>
         </button>
       )}
+
+      <KidsCard />
 
       <TrainTodayCard />
       <EventTodayCard />
