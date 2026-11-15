@@ -37,7 +37,17 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
   const cv = useRef<HTMLCanvasElement>(null);
   const soundRef = useRef(sound); soundRef.current = sound;
 
+  const root = useRef<HTMLDivElement>(null);
   useEffect(() => { const o = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = o; }; }, []);
+  // Fit the part of the screen you can actually see: Safari's toolbars and the
+  // in-app browser bar sit on top of "100%" height, so follow the visual viewport.
+  useEffect(() => {
+    const vv = window.visualViewport, el = root.current; if (!el) return;
+    const fit = () => { const h = vv ? vv.height : window.innerHeight; el.style.height = `${Math.round(h)}px`; el.style.top = `${Math.round(vv ? vv.offsetTop : 0)}px`; };
+    fit();
+    vv?.addEventListener('resize', fit); vv?.addEventListener('scroll', fit); window.addEventListener('resize', fit); window.addEventListener('orientationchange', fit);
+    return () => { vv?.removeEventListener('resize', fit); vv?.removeEventListener('scroll', fit); window.removeEventListener('resize', fit); window.removeEventListener('orientationchange', fit); };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('px:kids-game', game);
@@ -71,12 +81,13 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
     const up = (e: PointerEvent) => { g.up(pt(e)); };
     c.addEventListener('pointerdown', dn); c.addEventListener('pointermove', mv); c.addEventListener('pointerup', up); c.addEventListener('pointercancel', up);
     window.addEventListener('resize', size);
-    return () => { cancelAnimationFrame(raf); c.removeEventListener('pointerdown', dn); c.removeEventListener('pointermove', mv); c.removeEventListener('pointerup', up); c.removeEventListener('pointercancel', up); window.removeEventListener('resize', size); };
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => size()) : null; ro?.observe(c);
+    return () => { ro?.disconnect(); cancelAnimationFrame(raf); c.removeEventListener('pointerdown', dn); c.removeEventListener('pointermove', mv); c.removeEventListener('pointerup', up); c.removeEventListener('pointercancel', up); window.removeEventListener('resize', size); };
   }, [game]);
 
   return (
     <Portal>
-      <div className="kids" role="dialog" aria-modal="true" aria-label="Kids Zone" data-testid="kids-zone">
+      <div ref={root} className="kids" role="dialog" aria-modal="true" aria-label="Kids Zone" data-testid="kids-zone">
         <div className="kids-top">
           <button className="kids-x" aria-label="Exit Kids Zone (grown-ups)" onClick={() => setGate(true)} data-testid="kids-x"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" /></svg></button>
           <div className="kids-tabs" role="tablist" aria-label="Games">

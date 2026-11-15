@@ -74,6 +74,23 @@ await step('Kids Zone from a workout: games respond, workout keeps running', asy
   await page.getByTestId('kids-catch').click(); await page.waitForTimeout(2000);
   await page.screenshot({ path: 'e2e/shots/kids-catch.png' });
 });
+await step('fits the visible screen, even when the browser bars shrink it', async () => {
+  const fits = async (label) => {
+    const vh = await page.evaluate(() => window.visualViewport?.height ?? window.innerHeight);
+    const box = async (sel) => page.locator(sel).first().boundingBox();
+    const z = await box('.kids'), cvs = await box('.kids-canvas'), bot = await box('.kids-bottom'), exit = await box('[data-testid="kids-exit"]');
+    assert.ok(z.y + z.height <= vh + 1, `${label}: zone ${z.y + z.height} > ${vh}`);
+    assert.ok(exit.y + exit.height <= vh, `${label}: exit button off screen`);
+    assert.ok(cvs.y + cvs.height <= bot.y + 1, `${label}: canvas runs under the controls`);
+    const px = await page.getByTestId('kids-canvas').evaluate((c) => [c.width / (window.devicePixelRatio > 2 ? 2 : window.devicePixelRatio), c.getBoundingClientRect().height]);
+    assert.ok(Math.abs(px[0] - cvs.width) < 2, `${label}: canvas not resized`);
+  };
+  await fits('phone');
+  await page.setViewportSize({ width: 390, height: 560 }); await page.waitForTimeout(400);
+  await fits('short screen');
+  await page.screenshot({ path: 'e2e/shots/kids-short.png' });
+  await page.setViewportSize({ width: 390, height: 664 }); await page.waitForTimeout(300);
+});
 await step('a quick tap does not exit; a 2-second hold does', async () => {
   await page.getByTestId('kids-exit').click();
   await page.waitForTimeout(300);
