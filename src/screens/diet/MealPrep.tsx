@@ -7,6 +7,8 @@ import type { AppData, MealPlan, MealType } from '../../lib/types';
 import { SubHead } from './DietHome';
 import { NutrientRow, NutritionFacts, RecipeSheet, money } from './shared';
 import { planInsights } from '../../lib/mealSmart';
+import { rankForBudget, shopAdvice, TIER_LABEL } from '../../lib/storeTiers';
+import { directionsUrl, searchPlaces, type Place } from '../../lib/places';
 
 const MT: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const MT_LABEL: Record<MealType, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
@@ -152,6 +154,8 @@ function PlanEditor({ data, plan, go, onNew }: { data: AppData; plan: MealPlan; 
         </section>
       )}
 
+      <WhereToShop data={data} plan={plan} cash={d.cash} go={go} />
+
       {(d.shared.length > 0 || d.leftovers.length > 0) && (
         <section className="card stack" data-testid="plan-reuse">
           <h2 className="eyebrow">Less waste</h2>
@@ -214,5 +218,47 @@ function PlanEditor({ data, plan, go, onNew }: { data: AppData; plan: MealPlan; 
       )}
       {confirm && <ConfirmDialog title="Start a new plan?" body="The current plan is archived. Items you added to the grocery list by hand are kept." confirmLabel="New plan" onCancel={() => setConfirm(false)} onConfirm={() => { store.archivePlan(plan.id); setConfirm(false); onNew(); }} />}
     </>
+  );
+}
+
+/** Budget-ranked grocery stores near the saved location, next to the plan's estimate. */
+function WhereToShop({ data, plan, cash, go }: { data: AppData; plan: MealPlan; cash: number; go: (r: Route) => void }) {
+  const loc = data.nutrition.location;
+  const has = !!loc && Number.isFinite(loc.lat);
+  const [st, setSt] = useState<{ s: 'idle' | 'loading' | 'error' } | { s: 'done'; list: ReturnType<typeof rankForBudget> }>({ s: 'idle' });
+  const b = budgetSummary(data);
+  const budget = b && b.groceryBudget > 0 ? b.groceryBudget * Math.min(1, plan.days / 7) : null;
+  const miles = (data.profile?.unit ?? 'lb') === 'lb';
+  const dist = (km: number) => (miles ? `${(km / 1.609).toFixed(1)} mi` : `${km.toFixed(1)} km`);
+  const find = async () => {
+    setSt({ s: 'loading' });
+    try {
+      const res: Place[] = await searchPlaces(loc!.lat, loc!.lon, 8, ['grocery']);
+      setSt({ s: 'done', list: rankForBudget(res, { people: plan.people, days: plan.days }) });
+    } catch { setSt({ s: 'error' }); }
+  };
+  const list = st.s === 'done' ? st.list : [];
+  const advice = shopAdvice(cash, budget, list[0]);
+  return (
+    <section className="card stack" data-testid="where-to-shop">
+      <h2 className="eyebrow">Where to shop</h2>
+      <p className="small">This list is about <b>{money(data, cash)}</b> at typical U.S. prices{budget !== null ? <>; your budget for {plan.days} days is <b>{money(data, budget)}</b></> : ''}.</p>
+      {!has && <button className="btn btn-outline" onClick={() => go('diet-near')} data-testid="wts-set-location">Find budget grocery stores near me</button>}
+      {has && st.s === 'idle' && <button className="btn btn-outline" onClick={find} data-testid="wts-find">Budget stores near {loc!.label}</button>}
+      {st.s === 'loading' && <div className="skeleton" style={{ height: 64 }} aria-busy="true" />}
+      {st.s === 'error' && <p className="small" role="alert">Store search isn’t reachable right now. <button className="link" onClick={() => go('diet-near')}>Open the store finder</button></p>}
+      {st.s === 'done' && (list.length ? (
+        <div className="list">
+          {list.slice(0, 3).map((p) => (
+            <div key={p.id} className="list-row" data-testid="wts-store">
+              <span className="grow"><b>{p.name}</b><br /><span className="small muted">{p.tier ? TIER_LABEL[p.tier] : 'Price level unknown'} · {dist(p.distanceKm)}</span></span>
+              <a className="btn btn-ghost btn-sm" href={directionsUrl(p)} target="_blank" rel="noopener noreferrer">Go</a>
+            </div>
+          ))}
+        </div>
+      ) : <p className="small muted">No grocery stores found nearby in OpenStreetMap. <button className="link" onClick={() => go('diet-near')}>Try another area</button></p>)}
+      {(st.s === 'done' || budget !== null) && advice && <p className="small" data-testid="wts-advice">{advice}</p>}
+      {st.s === 'done' && <p className="small muted">Price levels are each chain’s general reputation, not live prices.</p>}
+    </section>
   );
 }

@@ -18,6 +18,8 @@ const FIX_OSM = { elements: [
   { type: 'node', id: 12, lat: 30.27, lon: -97.74, tags: { name: 'Fixture Green Kitchen', amenity: 'restaurant', cuisine: 'mediterranean', 'diet:vegan': 'yes', takeaway: 'yes', opening_hours: 'Mo-Su 11:00-21:00' } },
   { type: 'node', id: 13, lat: 30.275, lon: -97.75, tags: { name: 'Fixture Burger Spot', amenity: 'fast_food', cuisine: 'burger' } },
   { type: 'way', id: 14, center: { lat: 30.26, lon: -97.73 }, tags: { name: 'ALDI', shop: 'supermarket' } },
+  { type: 'node', id: 15, lat: 30.2675, lon: -97.7435, tags: { name: 'Whole Foods Market', shop: 'supermarket', brand: 'Whole Foods Market' } },
+  { type: 'node', id: 16, lat: 30.265, lon: -97.742, tags: { name: 'H-E-B', shop: 'supermarket', brand: 'H-E-B' } },
 ] };
 
 const browser = await chromium.launch();
@@ -141,6 +143,53 @@ await step('no horizontal overflow and no runtime errors', async () => {
 });
 
 await ctx.close();
+
+// ── Budget stores near you (place search mocked with fixtures) ─────────────
+const g = await setup({ geolocation: { latitude: 30.2672, longitude: -97.7431 }, permissions: ['geolocation'] }, 'ok');
+current = g.page;
+
+await step('plan shows where to shop, budget stores first, with an honest note', async () => {
+  const p = g.page;
+  await onboard(p);
+  await p.evaluate(() => {
+    const k = globalThis.__kova;
+    k.setBudget({ amount: 60, period: 'week', scope: 'groceries', eatingOutShare: 0, currency: 'USD' });
+    k.setLocation({ label: 'Austin, TX', lat: 30.27, lon: -97.74 });
+  });
+  await p.goto(url + '#diet-prep');
+  for (let i = 0; i < 4; i++) await p.getByTestId('prep-next').click();
+  await p.getByTestId('prep-create').click();
+  const w = p.getByTestId('where-to-shop');
+  await w.waitFor();
+  assert.match(await w.innerText(), /at typical U\.S\. prices; your budget for 4 days is \$34\.29/);
+  await p.getByTestId('wts-find').click();
+  await p.getByTestId('wts-store').first().waitFor();
+  const names = await p.getByTestId('wts-store').allInnerTexts();
+  assert.match(names[0], /ALDI[\s\S]*Usually budget-friendly/);
+  assert.ok(!names.slice(0, 2).some((n) => /Whole Foods/.test(n)), 'pricier store not on top even though closest');
+  assert.match(await w.innerText(), /general reputation, not live prices/);
+  await w.scrollIntoViewIfNeeded();
+  await w.screenshot({ path: 'e2e/shots/m06-where-to-shop.png' });
+});
+
+await step('store finder: tier badges, budget-first sort and nearest toggle', async () => {
+  const p = g.page;
+  await p.goto(url + '#diet-near');
+  await p.getByTestId('use-location').click();
+  await p.getByTestId('geo-allow').click();
+  await p.getByTestId('shop-budget').waitFor();
+  const first = async () => (await p.getByTestId('place').first().innerText());
+  assert.match(await first(), /ALDI/);
+  await p.getByTestId('tier-premium').first().waitFor();
+  await p.getByTestId('sort-near').click();
+  assert.doesNotMatch(await first(), /ALDI/, 'nearest puts the closer places first');
+  await p.getByTestId('sort-budget').click();
+  assert.match(await p.getByTestId('shop-budget').innerText(), /ALDI is usually cheaper|fits your budget/);
+  await p.getByTestId('shop-budget').screenshot({ path: 'e2e/shots/m07-shop-budget.png' });
+  assert.equal(await overflow(p), 0);
+  assert.deepEqual(p.errors, []);
+});
+await g.ctx.close();
 await browser.close();
 server.close();
 for (const r of results) console.log(r[0].padEnd(5), r[1], r[2] ?? '');

@@ -742,3 +742,6 @@ label.btn { cursor: pointer; }
 .prep-steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; counter-increment: prep; }
 .prep-steps li::before { content: counter(prep); width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: #ff5a1f; color: var(--on-ember); font-weight: 700; font-size: 0.85rem; }
 .leftover { display: grid; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line, #2a2623); }
+.tier-budget { background: color-mix(in srgb, var(--ember) 18%, transparent); color: var(--ink); border-color: var(--ember); }
+.tier-bulk, .tier-standard { color: var(--ink-2); }
+.tier-premium { color: var(--ink-3); }

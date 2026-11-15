@@ -324,3 +324,39 @@ test('plan insights: per-day nutrition, % of target, leftovers and prep order', 
   const plain = store();
   assert.deepEqual(dailyRef(plain.get()), { ...FDA_DV, personal: false });
 });
+
+// ── Budget stores ──────────────────────────────────────────────────────────
+import { tierOf, rankForBudget, shopAdvice } from '../src/lib/storeTiers';
+
+test('store tiers: known chains get a tier, unknown stores get none', () => {
+  const t = (name: string, brand?: string) => tierOf({ name, brand, kind: 'grocery' });
+  assert.equal(t('ALDI'), 'budget');
+  assert.equal(t('Lidl'), 'budget');
+  assert.equal(t('Walmart Supercenter'), 'budget');
+  assert.equal(t('Costco Wholesale'), 'bulk');
+  assert.equal(t('Whole Foods Market'), 'premium');
+  assert.equal(t('GIANT', 'Giant'), 'standard');
+  assert.equal(t('Weis Markets'), 'standard');
+  assert.equal(t('Rosa’s Corner Market'), null);
+});
+
+test('budget ranking: discount first unless much farther; bulk only helps big preps', () => {
+  const p = (name: string, km: number) => ({ id: name, name, kind: 'grocery' as const, lat: 0, lon: 0, distanceKm: km, cuisine: [], vegetarian: null, vegan: null, takeaway: null, delivery: null });
+  const near = rankForBudget([p('Whole Foods', 0.5), p('Giant', 1), p('ALDI', 2), p('Costco', 2.2)]);
+  assert.equal(near[0].name, 'ALDI');
+  assert.equal(near.at(-1)!.name, 'Whole Foods');
+  // 25 km away isn't worth it against a standard store 1 km away.
+  assert.equal(rankForBudget([p('ALDI', 25), p('Giant', 1)])[0].name, 'Giant');
+  // Bulk ranks above standard for a family prepping a week, below it for one person.
+  assert.equal(rankForBudget([p('Giant', 1), p('Costco', 2)], { people: 4, days: 7 })[0].name, 'Costco');
+  assert.equal(rankForBudget([p('Giant', 1), p('Costco', 2)], { people: 1, days: 3 })[0].name, 'Giant');
+  // Restaurants never appear in store ranking.
+  assert.equal(rankForBudget([{ ...p('Burger', 0.1), kind: 'fast_food' }]).length, 0);
+});
+
+test('shop advice is honest about budget fit', () => {
+  assert.match(shopAdvice(50, 60)!, /fits your budget/);
+  assert.match(shopAdvice(80, 60, { name: 'ALDI', tier: 'budget' })!, /ALDI is usually cheaper/);
+  assert.match(shopAdvice(80, 60, { name: 'Giant', tier: 'standard' })!, /Budget saver/);
+  assert.equal(shopAdvice(80, null), null);
+});

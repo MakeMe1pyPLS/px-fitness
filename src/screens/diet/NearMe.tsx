@@ -2,6 +2,10 @@ import React, { useMemo, useState } from 'react';
 import { Icon, store, useData, useToast, type Route } from '../../components/core';
 import { ATTRIBUTION, coarse, directionsUrl, geocode, mapsSearchUrl, orderingTips, osmUrl, PlacesError, searchPlaces, type Place, type PlaceKind } from '../../lib/places';
 import { SubHead } from './DietHome';
+import { rankForBudget, shopAdvice, tierOf, TIER_LABEL, TIER_NOTE, type Tier } from '../../lib/storeTiers';
+import { budgetSummary } from '../../lib/nutrition';
+import { planInsights } from '../../lib/mealSmart';
+import { money } from './shared';
 
 const KIND_LABEL: Record<PlaceKind, string> = { grocery: 'Grocery', discount: 'Discount grocery', market: 'Market', restaurant: 'Restaurant', fast_food: 'Quick service', cafe: 'Café' };
 type Status = { s: 'idle' } | { s: 'loading' } | { s: 'error'; kind: PlacesError['kind'] | 'geo'; msg: string } | { s: 'done'; at: string };
@@ -21,6 +25,11 @@ export function NearMeView({ go }: { go: (r: Route) => void }) {
   const [cuisine, setCuisine] = useState('');
   const [view, setView] = useState<'list' | 'map'>('list');
   const [askGeo, setAskGeo] = useState(false);
+  const [sort, setSort] = useState<'budget' | 'near'>('budget');
+  const plan = data.nutrition.plans.find((p) => p.status === 'active');
+  const planCash = plan ? planInsights(data, plan).cash : null;
+  const bs = budgetSummary(data);
+  const budgetForPlan = plan && bs && bs.groceryBudget > 0 ? bs.groceryBudget * Math.min(1, plan.days / 7) : null;
 
   const run = async (at: { lat: number; lon: number }, r = radius, t = type) => {
     setStatus({ s: 'loading' });
@@ -68,6 +77,10 @@ export function NearMeView({ go }: { go: (r: Route) => void }) {
     if (cuisine && !p.cuisine.includes(cuisine)) return false;
     return true;
   });
+  const ranked = sort === 'budget' && type !== 'food'
+    ? [...rankForBudget(filtered, { people: plan?.people, days: plan?.days }), ...filtered.filter((p) => !['grocery', 'discount', 'market'].includes(p.kind))]
+    : filtered;
+  const cheapest = rankForBudget(filtered, { people: plan?.people, days: plan?.days })[0];
   const dist = (km: number) => (miles ? `${(km / 1.609).toFixed(1)} mi` : `${km.toFixed(1)} km`);
   const where = loc?.label || q || 'me';
   const hasCoords = loc && Number.isFinite(loc.lat);
@@ -123,12 +136,23 @@ export function NearMeView({ go }: { go: (r: Route) => void }) {
             <p className="small muted" data-testid="near-count">{filtered.length} place{filtered.length === 1 ? '' : 's'} · updated {status.at}</p>
             <div className="seg" role="group" aria-label="View"><button aria-pressed={view === 'list'} onClick={() => setView('list')}>List</button><button aria-pressed={view === 'map'} onClick={() => setView('map')}>Map</button></div>
           </div>
+          {type !== 'food' && filtered.some((p) => p.kind !== 'restaurant' && p.kind !== 'fast_food' && p.kind !== 'cafe') && (
+            <div className="card card-tight stack" style={{ gap: 6 }} data-testid="shop-budget">
+              <div className="row-between"><b>Shop on a budget</b>
+                <div className="seg" role="group" aria-label="Sort"><button aria-pressed={sort === 'budget'} onClick={() => setSort('budget')} data-testid="sort-budget">Budget first</button><button aria-pressed={sort === 'near'} onClick={() => setSort('near')} data-testid="sort-near">Nearest</button></div>
+              </div>
+              {planCash !== null && <p className="small">Your meal plan’s list is about <b>{money(data, planCash)}</b> at typical U.S. prices{budgetForPlan !== null ? <> · budget for those days <b>{money(data, budgetForPlan)}</b></> : ''}.</p>}
+              {(() => { const a = shopAdvice(planCash ?? 0, planCash === null ? null : budgetForPlan, cheapest); return a && <p className="small" data-testid="shop-advice">{a}</p>; })()}
+              <p className="small muted">Price levels are each chain’s general reputation, not live prices. Shelf prices vary by item, area and week.</p>
+            </div>
+          )}
           {filtered.length === 0 ? (
             <div className="card stack"><p>No matching places in OpenStreetMap within {dist(radius)}.</p><p className="small muted">Try a wider radius or fewer filters. Coverage varies by area.</p><MapLinks where={where} /></div>
           ) : view === 'map' ? <RelativeMap places={filtered} radius={radius} dist={dist} /> : (
             <div className="stack">
-              {filtered.slice(0, 40).map((p) => {
+              {ranked.slice(0, 40).map((p) => {
                 const saved = data.nutrition.places.some((x) => x.id === p.id);
+                const tier: Tier | null = ['grocery', 'discount', 'market'].includes(p.kind) ? (tierOf(p) ?? (p.kind === 'discount' ? 'budget' : null)) : null;
                 return (
                   <article key={p.id} className="card card-tight stack" style={{ gap: 6 }} data-testid="place">
                     <div className="row-between" style={{ alignItems: 'flex-start' }}>
@@ -136,6 +160,7 @@ export function NearMeView({ go }: { go: (r: Route) => void }) {
                       <button className="icon-btn" aria-pressed={saved} aria-label={saved ? `Unsave ${p.name}` : `Save ${p.name}`} style={{ color: saved ? 'var(--ember-deep)' : undefined }} onClick={() => { store.togglePlace({ id: p.id, name: p.name, kind: p.kind, lat: p.lat, lon: p.lon, address: p.address }); toast(saved ? 'Removed' : 'Saved to favorites'); }}><Icon.star filled={saved} /></button>
                     </div>
                     {p.address && <span className="small">{p.address}</span>}
+                    {tier && <div className="row wrap" style={{ gap: 6, alignItems: 'center' }}><span className={`badge tier-${tier}`} data-testid={`tier-${tier}`}>{TIER_LABEL[tier]}</span><span className="small muted">{TIER_NOTE[tier]}</span></div>}
                     <div className="row wrap" style={{ gap: 6 }}>
                       {p.vegan && <span className="badge badge-moss">Vegan options listed</span>}
                       {!p.vegan && p.vegetarian && <span className="badge badge-moss">Vegetarian options listed</span>}
@@ -143,7 +168,7 @@ export function NearMeView({ go }: { go: (r: Route) => void }) {
                       {p.delivery && <span className="badge">Delivery</span>}
                     </div>
                     {p.hoursText && <span className="small muted">Listed hours (may be out of date): {p.hoursText}</span>}
-                    <span className="small muted">Prices and menu nutrition aren’t available for this place.</span>
+                    {!tier && <span className="small muted">{p.kind === 'market' ? 'Market prices vary by stall and season.' : 'Live prices and menu nutrition aren’t available for this place.'}</span>}
                     <div className="row wrap" style={{ gap: 8 }}>
                       <a className="btn btn-outline btn-sm" href={directionsUrl(p)} target="_blank" rel="noopener noreferrer">Directions</a>
                       <a className="btn btn-ghost btn-sm" href={osmUrl(p)} target="_blank" rel="noopener noreferrer">View on map</a>
