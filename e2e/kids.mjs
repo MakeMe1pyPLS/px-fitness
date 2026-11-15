@@ -66,10 +66,36 @@ await step('a quick tap does not exit; a 2-second hold does', async () => {
   await page.waitForTimeout(300);
   assert.equal(await page.getByTestId('kids-zone').count(), 1);
   const e = await page.getByTestId('kids-exit').boundingBox();
-  await page.mouse.move(e.x + 10, e.y + 10); await page.mouse.down(); await page.waitForTimeout(2300); await page.mouse.up();
+  await page.mouse.move(e.x + 10, e.y + 10); await page.mouse.down(); await page.waitForTimeout(1800); await page.mouse.up();
   await page.getByTestId('kids-zone').waitFor({ state: 'detached' });
   await page.getByTestId('finish').waitFor();
   assert.equal(await page.evaluate(() => globalThis.__kova.get().sessions.filter((s) => s.status === 'in_progress').length), 1);
+});
+await step('✕ asks a grown-up question: wrong answer stays, right answer exits', async () => {
+  await page.getByTestId('open-kids').click();
+  await page.getByTestId('kids-zone').waitFor();
+  await page.getByTestId('kids-x').click();
+  const [a, b] = (await page.getByTestId('gate-q').innerText()).split('+').map((x) => Number(x.trim()));
+  const wrong = await page.locator('[data-testid^="gate-"]').evaluateAll((els, ans) => els.map((e) => e.dataset.testid).find((id) => /^gate-\d+$/.test(id) && id !== `gate-${ans}`), a + b);
+  await page.getByTestId(wrong).click();
+  await page.getByTestId('kids-gate').waitFor({ state: 'detached' });
+  assert.equal(await page.getByTestId('kids-zone').count(), 1);
+  await page.getByTestId('kids-x').click();
+  const [c, d] = (await page.getByTestId('gate-q').innerText()).split('+').map((x) => Number(x.trim()));
+  await page.screenshot({ path: 'e2e/shots/kids-gate.png' });
+  await page.getByTestId(`gate-${c + d}`).click();
+  await page.getByTestId('kids-zone').waitFor({ state: 'detached' });
+  await page.getByTestId('finish').waitFor();
+});
+await step('touch-and-hold exits too (how phones do it)', async () => {
+  await page.getByTestId('open-kids').click();
+  await page.getByTestId('kids-zone').waitFor();
+  const cdp = await ctx.newCDPSession(page);
+  const e = await page.getByTestId('kids-exit').boundingBox();
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: e.x + 20, y: e.y + 20 }] });
+  await page.waitForTimeout(1800);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await page.getByTestId('kids-zone').waitFor({ state: 'detached' });
 });
 await step('Kids card on Today opens it too', async () => {
   await page.goto(url + '#home');

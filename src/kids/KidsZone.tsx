@@ -22,6 +22,7 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
   const [game, setGame] = useState<GameId>(() => (localStorage.getItem('px:kids-game') as GameId) || 'bubbles');
   const [sound, setSound] = useState(() => localStorage.getItem('px:kids-sound') !== 'off');
   const [score, setScore] = useState(0);
+  const [gate, setGate] = useState(false);
   const cv = useRef<HTMLCanvasElement>(null);
   const soundRef = useRef(sound); soundRef.current = sound;
 
@@ -60,6 +61,7 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
     <Portal>
       <div className="kids" role="dialog" aria-modal="true" aria-label="Kids Zone" data-testid="kids-zone">
         <div className="kids-top">
+          <button className="kids-x" aria-label="Exit Kids Zone (grown-ups)" onClick={() => setGate(true)} data-testid="kids-x"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" /></svg></button>
           <div className="kids-tabs" role="tablist" aria-label="Games">
             {GAMES.map((g) => <button key={g.id} role="tab" aria-selected={game === g.id} className="kids-tab" onClick={() => setGame(g.id)} data-testid={`kids-${g.id}`}><span aria-hidden className="kids-emoji">{g.emoji}</span><span>{g.name}</span></button>)}
           </div>
@@ -70,6 +72,7 @@ export function KidsZone({ onExit }: { onExit: () => void }) {
           <button className="kids-sound" onClick={() => { const v = !sound; setSound(v); localStorage.setItem('px:kids-sound', v ? 'on' : 'off'); }} aria-pressed={sound} aria-label={sound ? 'Sound on' : 'Sound off'}>{sound ? '🔊' : '🔇'}</button>
           <HoldExit onExit={onExit} />
         </div>
+        {gate && <GrownUpGate onPass={onExit} onCancel={() => setGate(false)} />}
       </div>
     </Portal>
   );
@@ -81,15 +84,31 @@ function HoldExit({ onExit }: { onExit: () => void }) {
   const timer = useRef<number | null>(null);
   const start = () => {
     const t0 = performance.now();
-    const tick = () => { const k = Math.min(1, (performance.now() - t0) / 2000); setP(k); if (k >= 1) { stop(); onExit(); return; } timer.current = requestAnimationFrame(tick); };
+    const tick = () => { const k = Math.min(1, (performance.now() - t0) / 1500); setP(k); if (k >= 1) { stop(); onExit(); return; } timer.current = requestAnimationFrame(tick); };
     timer.current = requestAnimationFrame(tick);
   };
   const stop = () => { if (timer.current) cancelAnimationFrame(timer.current); timer.current = null; setP(0); };
   useEffect(() => stop, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <button className="kids-exit" style={{ ['--p' as string]: p }} onPointerDown={(e) => { e.currentTarget.setPointerCapture?.(e.pointerId); start(); }} onPointerUp={stop} onPointerCancel={stop} onContextMenu={(e) => e.preventDefault()}
-      onKeyDown={(e) => { if (e.key === 'Enter' && e.repeat) onExit(); }} aria-label="Grown-up exit: press and hold for 2 seconds" data-testid="kids-exit">
+      onKeyDown={(e) => { if (e.key === 'Enter' && e.repeat) onExit(); }} aria-label="Grown-up exit: press and hold" data-testid="kids-exit">
       <span>{p > 0 ? 'Keep holding…' : 'Grown-up: hold to exit'}</span>
     </button>
+  );
+}
+
+/** Tap ✕ → a quick question a small child can't answer by tapping around. */
+function GrownUpGate({ onPass, onCancel }: { onPass: () => void; onCancel: () => void }) {
+  const [q] = useState(() => { const a = 4 + ((Math.random() * 6) | 0), b = 3 + ((Math.random() * 6) | 0); const ans = a + b; const opts = new Set([ans]); while (opts.size < 4) opts.add(ans + [-3, -2, -1, 1, 2, 3][(Math.random() * 6) | 0]); return { a, b, ans, opts: [...opts].sort(() => Math.random() - 0.5) }; });
+  const [wrong, setWrong] = useState(false);
+  return (
+    <div className="kids-gate" role="dialog" aria-modal="true" aria-label="Grown-ups only" data-testid="kids-gate">
+      <div className={'kids-gate-card' + (wrong ? ' shake' : '')}>
+        <b>Grown-ups only</b>
+        <p>To leave, tap the answer: <span className="tnum" data-testid="gate-q">{q.a} + {q.b}</span></p>
+        <div className="kids-gate-opts">{q.opts.map((o) => <button key={o} className="kids-gate-opt tnum" onClick={() => { if (o === q.ans) onPass(); else { setWrong(true); setTimeout(onCancel, 500); } }} data-testid={`gate-${o}`}>{o}</button>)}</div>
+        <button className="kids-gate-back" onClick={onCancel} data-testid="gate-back">Keep playing</button>
+      </div>
+    </div>
   );
 }

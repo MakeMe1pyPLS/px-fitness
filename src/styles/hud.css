@@ -384,3 +384,15 @@ html[data-bg='canvas'] body::before, html[data-bg='canvas'] body::after { displa
 .kids-btn { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(255, 210, 63, 0.6); background: rgba(255, 210, 63, 0.12); color: #ffd23f; font-weight: 800; font-size: 13px; }
 .kids-card { width: 100%; color: var(--ink); }
 .kids-card-art { font-size: 22px; letter-spacing: 2px; }
+.kids-top { position: relative; padding-right: 62px; }
+.kids-x { position: absolute; top: 12px; right: 10px; width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.35); background: rgba(0, 0, 0, 0.35); color: #fff; display: grid; place-items: center; }
+.kids-exit, .kids-x { -webkit-touch-callout: none; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.kids-gate { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; background: rgba(5, 4, 20, 0.7); padding: 20px; }
+.kids-gate-card { width: min(340px, 100%); background: #fff; color: #1b1550; border-radius: 22px; padding: 20px; display: grid; gap: 12px; text-align: center; font-size: 17px; }
+.kids-gate-card p { margin: 0; }
+.kids-gate-card .tnum { font-weight: 900; }
+.kids-gate-opts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.kids-gate-opt { min-height: 54px; border-radius: 14px; border: 0; background: #ece8ff; color: #1b1550; font-size: 22px; font-weight: 900; }
+.kids-gate-back { min-height: 44px; border: 0; background: none; color: #5a4fc9; font-weight: 800; }
+.shake { animation: shake 400ms; }
+@keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
