@@ -236,9 +236,9 @@ export function recommend(data: AppData, mealType: MealType, exclude: string[] =
     if (quickPreference && mins <= 15) { s += 0.8; reasons.push('quick, like the meals you usually pick'); }
     if (mins <= 10) s += 0.2;
     const rating = data.nutrition.ratings[r.id];
-    if (rating && rating >= 4) { s += rating === 5 ? 2 : 1.4; reasons.push(`you rated it ${rating}/5`); }
+    if (rating && rating >= 4) { s += rating === 5 ? 3 : 1.8; reasons.push(`you rated it ${rating}/5`); }
     if (rating && rating <= 2) s -= 2;
-    if (data.nutrition.saved.includes(r.id)) { s += 0.6; reasons.push('in your saved meals'); }
+    if (data.nutrition.saved.includes(r.id)) { s += 1; reasons.push('in your saved meals'); }
     if (recent.has(r.id)) s -= 2;
     if (rejected.has(r.id)) s -= 3;
     if (prefs.cuisines.includes(r.cuisine)) { s += 0.5; reasons.push(`${r.cuisine} cuisine`); }

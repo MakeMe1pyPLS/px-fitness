@@ -179,11 +179,16 @@ await step('10. ingredient substitution updates plan, grocery list and cost', as
   assert.ok(await select.count(), 'a swappable ingredient');
   const costBefore = await sheet.getByTestId('batch-cost').textContent();
   const opts = await select.locator('option').evaluateAll((os) => os.map((o) => o.value).filter(Boolean));
-  await select.selectOption(opts[0]);
-  const costAfter = await sheet.getByTestId('batch-cost').textContent();
+  // Some swaps cost the same (e.g. breast → thighs); pick one that changes the price.
+  let picked = null, costAfter = costBefore;
+  for (const o of opts) {
+    await select.selectOption(o);
+    costAfter = await sheet.getByTestId('batch-cost').textContent();
+    if (costAfter !== costBefore) { picked = o; break; }
+  }
   assert.notEqual(costBefore, costAfter, 'cost recalculated');
   await page.keyboard.press('Escape');
-  const g = await page.evaluate((id) => globalThis.__kova.get().nutrition.grocery.some((x) => x.ingredientId === id), opts[0]);
+  const g = await page.evaluate((id) => globalThis.__kova.get().nutrition.grocery.some((x) => x.ingredientId === id), picked);
   assert.ok(g, 'grocery list includes the substitute');
   await page.getByText('Your swaps:').first().waitFor();
 });

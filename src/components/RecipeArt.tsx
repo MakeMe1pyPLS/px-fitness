@@ -2,6 +2,7 @@
 // in one consistent PX style: top-down on a warm dark table, ember glow.
 // They are illustrations, not photos; swap in real photos later by adding `photo` to a recipe.
 import React, { useId } from 'react';
+import { recipe as getRecipe } from '../lib/foods';
 
 type El = React.ReactElement;
 const W = 320, H = 200, CX = 160, CY = 102;
@@ -314,6 +315,50 @@ const DISHES: Record<string, Draw> = {
   ),
 };
 
+
+// ── generated cover: any recipe without hand-drawn art gets a bowl split into
+// sectors, one per main ingredient (by weight), each drawn in that food's colour.
+const ING_COLOR: Record<string, [string, string]> = {
+  rice: [C.rice, C.riceShade], 'brown-rice': ['#d8c3a0', '#b89e74'], quinoa: ['#e8d7a8', '#c9b27a'], oats: [C.oats, C.oatsFleck],
+  spaghetti: [C.pasta, C.pastaDark], bread: [C.bread, C.crust], tortilla: [C.tortilla, C.tortillaDark], pita: [C.tortilla, C.tortillaDark],
+  'chicken-breast': [C.chicken, C.chickenDark], 'chicken-thighs': ['#c98247', '#8a4c22'], 'ground-turkey': ['#b9825a', '#8a5a3a'],
+  'ground-beef': [C.beef, C.beefLight], 'pork-loin': ['#e0a98a', '#b77a5a'], 'salmon-canned': ['#f08a65', '#c9603f'], shrimp: ['#f39a73', '#e06a45'],
+  tuna: [C.tuna, '#b8957c'], eggs: [C.white, C.yolk], tofu: [C.tofu, C.tofuCrisp], 'black-beans': [C.bean, '#5a4440'], 'kidney-beans': ['#7a2a26', '#a3423b'],
+  chickpeas: [C.chickpea, '#c3a266'], lentils: [C.lentil, '#8f4c1e'], 'cottage-cheese': ['#f6f2e8', '#ddd5c4'], 'greek-yogurt': [C.yogurt, '#e2ddd2'],
+  milk: [C.yogurt, '#e2ddd2'], cheddar: [C.cheese, '#d98a1f'], mozzarella: ['#fbf3dc', '#eadfbd'], 'sweet-potato': ['#e07a2c', '#b85a18'], potatoes: [C.potato, C.potatoDark],
+  carrots: [C.carrot, '#c96a14'], 'bell-pepper': ['#d63a2a', '#f2b233'], zucchini: ['#4f8a3a', '#9cc46e'], cabbage: ['#b9d48f', '#8fae62'], spinach: [C.spinach, '#4f9a45'],
+  broccoli: [C.broc, C.brocLight], peas: [C.pea, '#5a9a2c'], corn: [C.corn, '#e0ad22'], 'mixed-veg': [C.carrot, C.pea], onion: [C.onion, '#d9c8e0'],
+  apple: ['#d84a3a', '#f2e2b0'], banana: [C.banana, '#e2cb7c'], berries: [C.blue, C.rasp], mango: ['#f5b335', '#e8951f'], lemon: ['#f4dc4a', '#e8c62a'],
+  'canned-tomatoes': [C.sauce, C.sauceLight], marinara: [C.sauce, C.sauceLight], salsa: [C.sauceLight, '#7cb342'], 'coconut-milk': ['#f3ead8', '#e0d3b8'],
+  'peanut-butter': [C.pb, '#c9884a'], almonds: ['#b07a4a', '#8a5a32'], hummus: ['#e2c58f', '#c9a265'],
+};
+const SKIP_ART = new Set(['olive-oil', 'seasoning', 'soy-sauce', 'garlic', 'honey', 'curry-powder']);
+function generated(r: R, id: string, uid: string): El {
+  const rec = getRecipe(id);
+  const parts = (rec?.ingredients ?? []).filter((i) => !SKIP_ART.has(i.id) && ING_COLOR[i.id]).sort((a, b) => b.grams - a.grams).slice(0, 4);
+  const saucy = rec?.ingredients.some((i) => ['canned-tomatoes', 'marinara', 'coconut-milk'].includes(i.id));
+  const base = saucy ? (rec!.ingredients.some((i) => i.id === 'coconut-milk') ? C.curryLight : C.sauce) : '#2a221c';
+  const total = parts.reduce((s, p) => s + p.grams, 0) || 1;
+  let a = -90;
+  const els: El[] = [];
+  parts.forEach((p, k) => {
+    const span = Math.max(50, (p.grams / total) * 360);
+    const a1 = Math.min(a + span, 270);
+    const [c1, c2] = ING_COLOR[p.id];
+    if (!saucy) els.push(<path key={`s${k}`} d={wedge(CX, CY, 72, a, a1)} fill={c1} opacity={0.35} />);
+    for (let i = 0; i < 26; i++) {
+      const [x, y] = pt(r, CX, CY, 66, a + 4, a1 - 4);
+      const s = 2.2 + r() * 3.4;
+      els.push(i % 3 === 0
+        ? <rect key={`p${k}${i}`} x={x - s} y={y - s} width={s * 2} height={s * 2} rx={s * 0.6} fill={c2} transform={`rotate(${r() * 90} ${x} ${y})`} />
+        : <ellipse key={`p${k}${i}`} cx={x} cy={y} rx={s * 1.2} ry={s * 0.85} fill={c1} transform={`rotate(${r() * 180} ${x} ${y})`} />);
+    }
+    a = a1;
+  });
+  if (rec?.ingredients.some((i) => i.id === 'spinach' || i.id === 'lemon')) for (let i = 0; i < 4; i++) { const [x, y] = pt(r, CX, CY, 50); els.push(leaf(x, y, 0.6, r() * 180, `lf${i}`)); }
+  return <Bowl id={uid} base={base}>{els}</Bowl>;
+}
+
 export const hasArt = (id: string) => id in DISHES;
 
 /** Recipe cover. `variant` sets the frame: hero (16:10 card), thumb (square). */
@@ -332,7 +377,7 @@ export function RecipeArt({ id, name, variant = 'hero', className }: { id: strin
       <rect x={0} y={0} width={W} height={H} fill={`url(#${uid}-bg)`} />
       <rect x={0} y={0} width={W} height={H} fill={`url(#${uid}-glow)`} />
       {variant === 'hero' && <g opacity={0.5}>{[0, 1, 2, 3, 4].map((i) => <line key={i} x1={0} y1={40 * i + 12} x2={W} y2={40 * i + 4} stroke="#ffffff" strokeOpacity={0.025} strokeWidth={1} />)}</g>}
-      {draw ? draw(r, uid) : <Plate id={uid}><circle cx={CX} cy={CY} r={40} fill="#d9c39a" /></Plate>}
+      {draw ? draw(r, uid) : generated(r, id, uid)}
     </svg>
   );
 }

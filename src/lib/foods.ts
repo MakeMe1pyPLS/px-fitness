@@ -11,6 +11,7 @@
 //    U.S. supermarket price used as a starting point. Users can edit any price.
 
 import type { Allergen, DietPattern, Kitchen, MealType } from './types';
+import { MORE_RECIPES } from './recipesMore';
 
 export const PRICE_SOURCE = {
   bls: 'BLS U.S. city average, Sep 2026',
@@ -74,6 +75,36 @@ export const INGREDIENTS: Ingredient[] = [
   { id: 'soy-sauce', name: 'Soy sauce', category: 'Pantry', per100: { kcal: 53, p: 8.1, c: 4.9, f: 0.6, fib: 0.8 }, pkg: est(2.5, 340, '10 oz bottle'), allergens: ['soy', 'gluten'], animal: null, unit: { name: 'tbsp', grams: 16 }, subs: [] },
   { id: 'salsa', name: 'Salsa', category: 'Pantry', per100: { kcal: 36, p: 1.5, c: 7, f: 0.2, fib: 1.9 }, pkg: est(3.0, 454, '16 oz jar'), allergens: [], animal: null, subs: [{ id: 'canned-tomatoes', factor: 1 }] },
   { id: 'seasoning', name: 'Spice blend (chili, cumin, garlic)', category: 'Pantry', per100: { kcal: 300, p: 12, c: 55, f: 8, fib: 30 }, pkg: est(1.5, 57, '2 oz jar'), allergens: [], animal: null, unit: { name: 'tsp', grams: 2.5 }, subs: [] },
+  // ── Added for the larger meal-prep library (prices are estimates; edit to match your store) ──
+  { id: 'brown-rice', name: 'Brown rice (dry)', category: 'Grains & bread', per100: { kcal: 370, p: 7.9, c: 77, f: 2.9, fib: 3.5 }, pkg: est(2.5, 907, '2 lb bag'), allergens: [], animal: null, subs: [{ id: 'rice', factor: 1 }] },
+  { id: 'quinoa', name: 'Quinoa (dry)', category: 'Grains & bread', per100: { kcal: 368, p: 14.1, c: 64.2, f: 6.1, fib: 7 }, pkg: est(4.5, 340, '12 oz bag'), allergens: [], animal: null, subs: [{ id: 'rice', factor: 1 }, { id: 'brown-rice', factor: 1 }] },
+  { id: 'pita', name: 'Pita bread', category: 'Grains & bread', per100: { kcal: 275, p: 9.1, c: 55.7, f: 1.2, fib: 2.2 }, pkg: est(2.5, 342, '6 count'), allergens: ['gluten'], animal: null, unit: { name: 'pita', grams: 57 }, subs: [{ id: 'tortilla', factor: 1 }, { id: 'bread', factor: 1 }] },
+  { id: 'chicken-thighs', name: 'Chicken thighs, boneless', category: 'Protein', per100: { kcal: 121, p: 19.7, c: 0, f: 4.1, fib: 0 }, pkg: est(7.5, 1134, '2.5 lb pack'), allergens: [], animal: 'meat', subs: [{ id: 'chicken-breast', factor: 1 }, { id: 'tofu', factor: 1 }] },
+  { id: 'ground-turkey', name: 'Ground turkey, 93% lean', category: 'Protein', per100: { kcal: 150, p: 18.7, c: 0, f: 8.3, fib: 0 }, pkg: est(5.0, 454, '1 lb pack'), allergens: [], animal: 'meat', subs: [{ id: 'ground-beef', factor: 1 }, { id: 'lentils', factor: 0.5 }] },
+  { id: 'pork-loin', name: 'Pork loin', category: 'Protein', per100: { kcal: 143, p: 21.4, c: 0, f: 5.7, fib: 0 }, pkg: est(9.0, 1361, '3 lb roast'), allergens: [], animal: 'meat', subs: [{ id: 'chicken-breast', factor: 1 }, { id: 'tofu', factor: 1 }] },
+  { id: 'salmon-canned', name: 'Canned salmon (drained)', category: 'Protein', per100: { kcal: 139, p: 23.1, c: 0, f: 5, fib: 0 }, pkg: est(3.5, 418, '14.75 oz can'), allergens: ['fish'], animal: 'fish', unit: { name: 'can', grams: 418 }, subs: [{ id: 'tuna', factor: 1 }, { id: 'chickpeas', factor: 1.5 }] },
+  { id: 'shrimp', name: 'Shrimp, frozen raw', category: 'Frozen', per100: { kcal: 85, p: 20.1, c: 0, f: 0.5, fib: 0 }, pkg: est(8.0, 454, '1 lb bag'), allergens: ['shellfish'], animal: 'fish', subs: [{ id: 'chicken-breast', factor: 1 }, { id: 'tofu', factor: 1 }] },
+  { id: 'black-beans', name: 'Canned black beans (drained)', category: 'Pantry', per100: { kcal: 91, p: 6, c: 16.6, f: 0.3, fib: 6.9 }, pkg: est(1.0, 255, '15 oz can'), allergens: [], animal: null, unit: { name: 'can', grams: 255 }, subs: [{ id: 'kidney-beans', factor: 1 }, { id: 'chickpeas', factor: 1 }] },
+  { id: 'kidney-beans', name: 'Canned kidney beans (drained)', category: 'Pantry', per100: { kcal: 85, p: 5.2, c: 15.5, f: 0.4, fib: 6.3 }, pkg: est(1.0, 255, '15 oz can'), allergens: [], animal: null, unit: { name: 'can', grams: 255 }, subs: [{ id: 'black-beans', factor: 1 }] },
+  { id: 'cottage-cheese', name: 'Cottage cheese, 2%', category: 'Dairy & eggs', per100: { kcal: 81, p: 10.5, c: 4.8, f: 2.3, fib: 0 }, pkg: est(3.5, 680, '24 oz tub'), allergens: ['dairy'], animal: 'dairy', subs: [{ id: 'greek-yogurt', factor: 1 }] },
+  { id: 'mozzarella', name: 'Mozzarella, part-skim', category: 'Dairy & eggs', per100: { kcal: 254, p: 24.3, c: 2.8, f: 15.9, fib: 0 }, pkg: est(3.5, 227, '8 oz bag'), allergens: ['dairy'], animal: 'dairy', subs: [{ id: 'cheddar', factor: 0.8 }] },
+  { id: 'sweet-potato', name: 'Sweet potatoes', category: 'Produce', per100: { kcal: 86, p: 1.6, c: 20.1, f: 0.1, fib: 3 }, pkg: est(3.9, 1361, '3 lb bag'), allergens: [], animal: null, subs: [{ id: 'potatoes', factor: 1 }] },
+  { id: 'carrots', name: 'Carrots', category: 'Produce', per100: { kcal: 41, p: 0.9, c: 9.6, f: 0.2, fib: 2.8 }, pkg: est(1.6, 907, '2 lb bag'), allergens: [], animal: null, subs: [{ id: 'mixed-veg', factor: 1 }] },
+  { id: 'bell-pepper', name: 'Bell peppers', category: 'Produce', per100: { kcal: 26, p: 1, c: 6, f: 0.3, fib: 2.1 }, pkg: est(1.2, 150, 'each'), allergens: [], animal: null, unit: { name: 'pepper', grams: 150 }, subs: [{ id: 'mixed-veg', factor: 1 }, { id: 'zucchini', factor: 1 }] },
+  { id: 'zucchini', name: 'Zucchini', category: 'Produce', per100: { kcal: 17, p: 1.2, c: 3.1, f: 0.3, fib: 1 }, pkg: est(1.6, 454, '1 lb'), allergens: [], animal: null, subs: [{ id: 'broccoli', factor: 1 }, { id: 'bell-pepper', factor: 1 }] },
+  { id: 'cabbage', name: 'Green cabbage', category: 'Produce', per100: { kcal: 25, p: 1.3, c: 5.8, f: 0.1, fib: 2.5 }, pkg: est(2.0, 907, 'head (~2 lb)'), allergens: [], animal: null, subs: [{ id: 'broccoli', factor: 1 }, { id: 'spinach', factor: 0.5 }] },
+  { id: 'apple', name: 'Apples', category: 'Produce', per100: { kcal: 52, p: 0.3, c: 13.8, f: 0.2, fib: 2.4 }, pkg: est(4.5, 1361, '3 lb bag'), allergens: [], animal: null, unit: { name: 'apple', grams: 182 }, subs: [{ id: 'banana', factor: 1 }] },
+  { id: 'garlic', name: 'Garlic', category: 'Produce', per100: { kcal: 149, p: 6.4, c: 33, f: 0.5, fib: 2.1 }, pkg: est(0.6, 50, '1 head'), allergens: [], animal: null, unit: { name: 'clove', grams: 3 }, subs: [] },
+  { id: 'lemon', name: 'Lemons', category: 'Produce', per100: { kcal: 29, p: 1.1, c: 9.3, f: 0.3, fib: 2.8 }, pkg: est(0.7, 84, 'each'), allergens: [], animal: null, unit: { name: 'lemon', grams: 84 }, subs: [] },
+  { id: 'peas', name: 'Frozen peas', category: 'Frozen', per100: { kcal: 77, p: 5.2, c: 13.6, f: 0.4, fib: 4.5 }, pkg: est(1.5, 340, '12 oz bag'), allergens: [], animal: null, subs: [{ id: 'mixed-veg', factor: 1 }] },
+  { id: 'corn', name: 'Frozen corn', category: 'Frozen', per100: { kcal: 88, p: 3, c: 20.7, f: 0.8, fib: 2.1 }, pkg: est(1.5, 340, '12 oz bag'), allergens: [], animal: null, subs: [{ id: 'mixed-veg', factor: 1 }, { id: 'peas', factor: 1 }] },
+  { id: 'mango', name: 'Frozen mango', category: 'Frozen', per100: { kcal: 60, p: 0.8, c: 15, f: 0.4, fib: 1.6 }, pkg: est(3.0, 454, '16 oz bag'), allergens: [], animal: null, subs: [{ id: 'berries', factor: 1 }] },
+  { id: 'coconut-milk', name: 'Canned coconut milk', category: 'Pantry', per100: { kcal: 197, p: 2, c: 2.8, f: 21.3, fib: 0 }, pkg: est(2.5, 400, '13.5 oz can'), allergens: [], animal: null, unit: { name: 'can', grams: 400 }, subs: [{ id: 'greek-yogurt', factor: 1 }] },
+  { id: 'curry-powder', name: 'Curry powder', category: 'Pantry', per100: { kcal: 325, p: 14, c: 56, f: 14, fib: 53 }, pkg: est(3.0, 57, '2 oz jar'), allergens: [], animal: null, unit: { name: 'tsp', grams: 2 }, subs: [{ id: 'seasoning', factor: 1 }] },
+  { id: 'honey', name: 'Honey', category: 'Pantry', per100: { kcal: 304, p: 0.3, c: 82.4, f: 0, fib: 0.2 }, pkg: est(5.0, 340, '12 oz bottle'), allergens: [], animal: null, unit: { name: 'tbsp', grams: 21 }, subs: [] },
+  { id: 'almonds', name: 'Almonds', category: 'Pantry', per100: { kcal: 579, p: 21.2, c: 21.6, f: 49.9, fib: 12.5 }, pkg: est(7.0, 454, '16 oz bag'), allergens: ['tree_nut'], animal: null, subs: [{ id: 'peanut-butter', factor: 1 }] },
+  { id: 'hummus', name: 'Hummus', category: 'Dairy & eggs', per100: { kcal: 166, p: 7.9, c: 14.3, f: 9.6, fib: 6 }, pkg: est(4.0, 283, '10 oz tub'), allergens: ['sesame'], animal: null, subs: [{ id: 'greek-yogurt', factor: 1 }] },
+  { id: 'marinara', name: 'Marinara sauce', category: 'Pantry', per100: { kcal: 50, p: 1.4, c: 8, f: 1.5, fib: 1.8 }, pkg: est(2.5, 680, '24 oz jar'), allergens: [], animal: null, subs: [{ id: 'canned-tomatoes', factor: 1 }] },
 ];
 
 const ING = new Map(INGREDIENTS.map((i) => [i.id, i]));
@@ -230,6 +261,7 @@ export const RECIPES: Recipe[] = [
     storage: 'Keep the filling in the fridge up to 2 days; assemble wraps the day you eat them.',
     substitutions: ['Use eggs (hard-boiled) instead of tuna.', 'Bread works in place of tortillas.'],
   },
+  ...MORE_RECIPES,
 ];
 
 const REC = new Map(RECIPES.map((r) => [r.id, r]));
