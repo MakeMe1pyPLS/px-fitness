@@ -250,7 +250,7 @@ export function recommend(data: AppData, mealType: MealType, exclude: string[] =
 }
 
 // ── Meal prep ──────────────────────────────────────────────────────────────
-export interface PrepOptions { days: number; people: number; mealTypes: MealType[]; mode: 'favorites' | 'new' | 'mix'; strategy: 'balanced' | 'budget' }
+export interface PrepOptions { days: number; people: number; mealTypes: MealType[]; mode: 'favorites' | 'new' | 'mix'; strategy: 'balanced' | 'budget' | 'smart' }
 
 const freezable = (r: Recipe) => /Freezes/.test(r.storage);
 
@@ -267,7 +267,7 @@ export function generatePlan(data: AppData, o: PrepOptions): MealPlan {
     // Past day 4, prefer dishes that freeze well.
     if (o.days > 4) ranked.sort((a, b) => Number(freezable(b.resolved.recipe)) - Number(freezable(a.resolved.recipe)));
     const count = mt === 'breakfast' || mt === 'snack' ? (o.days >= 5 ? 2 : 1) : o.days >= 5 ? 3 : 2;
-    const chosen = ranked.slice(0, Math.min(count, ranked.length));
+    const chosen = o.strategy === 'smart' ? smartPick(data, mt, ranked, count, items, o) : ranked.slice(0, Math.min(count, ranked.length));
     if (!chosen.length) continue;
     const base = Math.floor(needed / chosen.length);
     chosen.forEach((c, i) => {
@@ -276,6 +276,58 @@ export function generatePlan(data: AppData, o: PrepOptions): MealPlan {
     });
   }
   return { id: uid('mp_'), createdAt: new Date().toISOString(), days: o.days, people: o.people, mealTypes: o.mealTypes, items, status: 'active', prepped: false, eaten: {} };
+}
+
+// Share of a day's food each meal usually covers. Used only to judge whether a
+// recipe's portion is in a sensible range for that meal, not as a rule.
+export const MEAL_SHARE: Record<MealType, number> = { breakfast: 0.25, lunch: 0.3, dinner: 0.32, snack: 0.13 };
+
+/**
+ * Smart pick: starts from the personal ranking, then rewards recipes that
+ * (1) reuse ingredients already in the plan, so fewer packages go half-used,
+ * (2) land near this meal's share of the user's calorie and protein targets,
+ * (3) keep the cost per serving inside the budget, and
+ * (4) freeze well when the plan runs past 4 days.
+ */
+function smartPick(data: AppData, mt: MealType, ranked: Recommendation[], count: number, planned: PlanItem[], o: PrepOptions): Recommendation[] {
+  const t = computeTargets(data.profile, prefsOf(data));
+  const kcalTarget = t.kcal ? t.kcal * MEAL_SHARE[mt] : null;
+  const pTarget = t.proteinG ? ((t.proteinG[0] + t.proteinG[1]) / 2) * MEAL_SHARE[mt] : null;
+  const perMeal = budgetPerMeal(data);
+  const needed = o.days * o.people;
+  const each = Math.max(1, Math.round(needed / Math.max(1, count)));
+  // Grams already on the grocery list from earlier picks (other meal types too).
+  const grams = new Map<string, number>();
+  const addTo = (m: Map<string, number>, items: { id: string; grams: number }[], f: number) => items.forEach((i) => m.set(i.id, (m.get(i.id) ?? 0) + i.grams * f));
+  const prefs = prefsOf(data);
+  planned.forEach((p) => { const r = getRecipe(p.recipeId); if (r) addTo(grams, resolveRecipe(r, prefs, p.swaps).ingredients, p.servings / r.servings); });
+  const cash = (m: Map<string, number>) => [...m.entries()].reduce((n, [id, g]) => n + packagesFor(data, id, g).cost, 0);
+  const pool = ranked.slice(0, 20);
+  const out: Recommendation[] = [];
+  while (out.length < count && pool.length) {
+    const base = cash(grams);
+    let best = 0, bestScore = -Infinity;
+    pool.forEach((c, i) => {
+      const r = c.resolved.recipe;
+      let s = c.score;
+      // What this dish really adds to the shopping bill, given the packages
+      // already being bought. Reusing a half-used bag costs nothing extra.
+      const m = new Map(grams);
+      addTo(m, c.resolved.ingredients, each / r.servings);
+      const marginal = (cash(m) - base) / each;
+      const ref = perMeal ?? 3.5;
+      s -= (marginal / ref) * 1.6;
+      if (kcalTarget) s -= Math.min(1.5, Math.abs(c.perServing.kcal - kcalTarget) / kcalTarget) * 1.0;
+      if (pTarget) s -= Math.max(0, (pTarget - c.perServing.p) / pTarget) * 1.2;
+      if (o.days > 4 && freezable(r)) s += 0.6;
+      if (out.some((x) => x.resolved.recipe.cuisine === r.cuisine)) s -= 0.4;
+      if (s > bestScore) { bestScore = s; best = i; }
+    });
+    const [pick] = pool.splice(best, 1);
+    out.push(pick);
+    addTo(grams, pick.resolved.ingredients, each / pick.resolved.recipe.servings);
+  }
+  return out;
 }
 
 const isFav = (d: AppData, id: string) => d.nutrition.saved.includes(id) || (d.nutrition.ratings[id] ?? 0) >= 4;

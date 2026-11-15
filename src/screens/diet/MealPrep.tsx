@@ -1,11 +1,12 @@
 import { RecipeArt } from '../../components/RecipeArt';
 import React, { useMemo, useState } from 'react';
 import { ConfirmDialog, Icon, Sheet, store, useData, useToast, type Route } from '../../components/core';
-import { budgetSummary, generatePlan, planDetails, prefsOf, recommend, type PrepOptions } from '../../lib/nutrition';
+import { budgetSummary, formatQty, generatePlan, prefsOf, recommend, type PrepOptions } from '../../lib/nutrition';
 import { recipe as getRecipe } from '../../lib/foods';
 import type { AppData, MealPlan, MealType } from '../../lib/types';
 import { SubHead } from './DietHome';
-import { NutrientRow, RecipeSheet, money } from './shared';
+import { NutrientRow, NutritionFacts, RecipeSheet, money } from './shared';
+import { planInsights } from '../../lib/mealSmart';
 
 const MT: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 const MT_LABEL: Record<MealType, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snack: 'Snack' };
@@ -28,9 +29,9 @@ function Wizard({ data, onDone, onCancel }: { data: AppData; onDone: () => void;
   const [step, setStep] = useState(0);
   const [o, setO] = useState<Omit<PrepOptions, 'strategy'>>({ days: 4, people: prefs.people, mealTypes: ['lunch', 'dinner'], mode: data.nutrition.saved.length ? 'mix' : 'new' });
   const set = (p: Partial<typeof o>) => setO((x) => ({ ...x, ...p }));
-  const options = useMemo(() => step === 4 ? (['balanced', 'budget'] as const).map((strategy) => { const plan = generatePlan(data, { ...o, strategy }); return { strategy, plan, d: planDetails(data, plan) }; }) : [], [step, data, o]);
-  const [pick, setPick] = useState<'balanced' | 'budget' | null>(null);
-  const suggested = b && (b.overspendWeeks >= 2 || (b.groceryBudget > 0 && options.length && options[0].d.cash > b.groceryBudget * (o.days / 7) * 1.05)) ? 'budget' : 'balanced';
+  const options = useMemo(() => step === 4 ? (['smart', 'balanced', 'budget'] as const).map((strategy) => { const plan = generatePlan(data, { ...o, strategy }); return { strategy, plan, d: planInsights(data, plan) }; }) : [], [step, data, o]);
+  const [pick, setPick] = useState<'smart' | 'balanced' | 'budget' | null>(null);
+  const suggested = b && (b.overspendWeeks >= 2 || (b.groceryBudget > 0 && options.length && options[0].d.cash > b.groceryBudget * (o.days / 7) * 1.05)) ? 'budget' : 'smart';
   const chosen = pick ?? suggested;
   const toast = useToast();
 
@@ -80,15 +81,17 @@ function Wizard({ data, onDone, onCancel }: { data: AppData; onDone: () => void;
       )}
       {step === 4 && (
         <div className="stack">
-          <h2 className="display" style={{ fontSize: 'var(--t-xl)' }}>Compare two plans</h2>
-          {suggested === 'budget' && <p className="small why-box">{b && b.overspendWeeks >= 2 ? `Logged grocery spending went over budget in ${b.overspendWeeks} recent weeks, so the budget plan is preselected.` : 'The balanced plan would go over your grocery budget for these days, so the budget plan is preselected.'}</p>}
+          <h2 className="display" style={{ fontSize: 'var(--t-xl)' }}>Pick a plan</h2>
+          {suggested === 'budget' && <p className="small why-box">{b && b.overspendWeeks >= 2 ? `Logged grocery spending went over budget in ${b.overspendWeeks} recent weeks, so the budget plan is preselected.` : 'The smart plan would go over your grocery budget for these days, so the budget plan is preselected.'}</p>}
           <div className="compare" role="radiogroup" aria-label="Plan options">
             {options.map(({ strategy, plan, d }) => (
               <button key={strategy} role="radio" aria-checked={chosen === strategy} className="option" onClick={() => setPick(strategy)} data-testid={`plan-${strategy}`}>
-                <b>{strategy === 'balanced' ? 'Best fit' : 'Budget saver'}</b>
+                <b>{strategy === 'smart' ? 'Smart plan' : strategy === 'balanced' ? 'Best fit' : 'Budget saver'}{strategy === suggested && <span className="badge" style={{ marginLeft: 8 }}>Suggested</span>}</b>
+                <span className="small muted">{strategy === 'smart' ? 'Shares ingredients so fewer packages go half-used, sized to your targets and budget' : strategy === 'balanced' ? 'Your top-ranked meals' : 'Lowest cost per serving'}</span>
                 <span>{plan.items.map((i) => getRecipe(i.recipeId)!.name).join(' · ') || 'No recipes fit'}</span>
                 <span className="tnum">Groceries ~{money(data, d.cash)} · {money(data, d.perServingCost)}/serving</span>
-                {prefsOf(data).showNumbers && d.items.length > 0 && <span className="tnum">Avg ~{Math.round(d.items.reduce((n, i) => n + i.perServing.p * i.item.servings, 0) / d.servings)} g protein/serving</span>}
+                {prefsOf(data).showNumbers && d.items.length > 0 && <span className="tnum">~{d.perDay.kcal} kcal · {d.perDay.p} g protein a day from these meals</span>}
+                {d.shared.length > 0 && <span className="small">Reuses {d.shared.length} ingredient{d.shared.length > 1 ? 's' : ''} across meals</span>}
               </button>
             ))}
           </div>
@@ -105,9 +108,11 @@ function Wizard({ data, onDone, onCancel }: { data: AppData; onDone: () => void;
 }
 
 function PlanEditor({ data, plan, go, onNew }: { data: AppData; plan: MealPlan; go: (r: Route) => void; onNew: () => void }) {
-  const d = planDetails(data, plan);
+  const d = planInsights(data, plan);
   const b = budgetSummary(data);
   const [recipeOpen, setRecipeOpen] = useState<number | null>(null);
+  const [idea, setIdea] = useState<string | null>(null);
+  const mealsLabel = plan.mealTypes.map((m) => MT_LABEL[m].toLowerCase()).join(', ');
   const [replace, setReplace] = useState<number | null>(null);
   const [confirm, setConfirm] = useState(false);
   const toast = useToast();
@@ -125,6 +130,40 @@ function PlanEditor({ data, plan, go, onNew }: { data: AppData; plan: MealPlan; 
           return <p className="small">{d.cash <= share ? '✓ ' : ''}Your grocery budget for {plan.days} days is about <b>{money(data, share)}</b>. {d.cash > share ? <>This plan runs about <b>{money(data, d.cash - share)}</b> over. Try fewer servings, cheaper swaps, or the budget plan.</> : 'This plan fits.'}</p>;
         })()}
       </section>
+
+      {d.items.length > 0 && (
+        <section className="card stack" data-testid="plan-daily">
+          <h2 className="eyebrow">Each day, per person</h2>
+          <NutritionFacts n={d.perDay} data={data} title={`From ${mealsLabel}`} testId="daily-facts"
+            note={d.coveredShare < 0.95 ? `This plan covers ${mealsLabel}, roughly ${Math.round(d.coveredShare * 100)}% of a typical day's food, so expect these numbers to be under your daily target.` : undefined} />
+          {!prefsOf(data).showNumbers && <p className="small muted">Numbers are hidden in your preferences.</p>}
+        </section>
+      )}
+
+      {d.items.length > 0 && (
+        <section className="card stack" data-testid="prep-day">
+          <div className="row-between"><h2 className="eyebrow">Prep day</h2><span className="small muted tnum" data-testid="prep-total">about {d.prepMin} min total</span></div>
+          <ol className="prep-steps">
+            {d.prep.map((x) => <li key={x.id} data-testid={`prep-${x.id}`}><div><b>{x.title}</b><div className="small muted">{x.detail}</div></div></li>)}
+          </ol>
+          {d.freezer.length > 0 && (
+            <div className="why-box small" data-testid="freezer-plan"><b>Freeze on prep day: </b>{d.freezer.map((f) => `${f.servings} × ${f.name}`).join(', ')}. Cooked food keeps 3–4 days in the fridge, so these are for day 5 onward. Move one to the fridge the night before.</div>
+          )}
+        </section>
+      )}
+
+      {(d.shared.length > 0 || d.leftovers.length > 0) && (
+        <section className="card stack" data-testid="plan-reuse">
+          <h2 className="eyebrow">Less waste</h2>
+          {d.shared.length > 0 && <p className="small">Shared across meals: {d.shared.map((x) => x.name.toLowerCase()).join(', ')}. Buy once, use more than once.</p>}
+          {d.leftovers.map((l) => (
+            <div key={l.id} className="leftover" data-testid="leftover">
+              <span className="small">You'll have about <b>{formatQty(l.id, l.grams, data.profile?.unit ?? 'lb')}</b> {l.name.toLowerCase()} left from the package.{l.ideas.length ? ' Use it in:' : ''}</span>
+              {l.ideas.length > 0 && <div className="row wrap" style={{ gap: 6 }}>{l.ideas.map((x) => <button key={x.id} className="chip" onClick={() => setIdea(x.id)} data-testid={`idea-${x.id}`}>{x.name}</button>)}</div>}
+            </div>
+          ))}
+        </section>
+      )}
 
       {d.items.map((it, i) => (
         <section key={i} className="card stack" data-testid="plan-item">
@@ -160,6 +199,7 @@ function PlanEditor({ data, plan, go, onNew }: { data: AppData; plan: MealPlan; 
         <RecipeSheet data={data} recipeId={d.items[recipeOpen].item.recipeId} servings={d.items[recipeOpen].item.servings} swaps={d.items[recipeOpen].item.swaps}
           onSwap={(sw) => store.updatePlanItem(plan.id, recipeOpen, { swaps: sw })} onServings={(n) => store.updatePlanItem(plan.id, recipeOpen, { servings: n })} onClose={() => setRecipeOpen(null)} />
       )}
+      {idea && <RecipeSheet data={data} recipeId={idea} onClose={() => setIdea(null)} />}
       {replace !== null && d.items[replace] && (
         <Sheet title="Replace meal" onClose={() => setReplace(null)}>
           <div className="list">

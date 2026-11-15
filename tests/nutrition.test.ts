@@ -271,3 +271,56 @@ test('quantities display in friendly units', () => {
   assert.equal(formatQty('rice', 907, 'kg'), '907 g');
   assert.equal(formatQty('olive-oil', 27), '2 tbsp');
 });
+
+// ── Smart planner ──────────────────────────────────────────────────────────
+import { planInsights, prepSchedule, freezerPlan, dailyRef, FDA_DV } from '../src/lib/mealSmart';
+
+const sharedCount = (plan: ReturnType<typeof generatePlan>) => {
+  const seen = new Map<string, number>();
+  const minor = new Set(['olive-oil', 'seasoning', 'soy-sauce', 'garlic', 'honey', 'curry-powder', 'lemon']);
+  for (const it of plan.items) for (const i of new Set(recipe(it.recipeId)!.ingredients.map((x) => x.id))) if (!minor.has(i)) seen.set(i, (seen.get(i) ?? 0) + 1);
+  return [...seen.values()].filter((n) => n >= 2).length;
+};
+
+test('smart plan: same servings rules, no repeats, and wastes less and costs no more than best-fit', () => {
+  const s = store(profile(), prefs({ age: 30, weightKg: 80, heightCm: 180, sex: 'male', activity: 'moderate' }));
+  const o = { days: 5, people: 2, mealTypes: ['breakfast', 'lunch', 'dinner'] as const, mode: 'mix' as const };
+  const smart = generatePlan(s.get(), { ...o, mealTypes: [...o.mealTypes], strategy: 'smart' });
+  const best = generatePlan(s.get(), { ...o, mealTypes: [...o.mealTypes], strategy: 'balanced' });
+  for (const mt of smart.mealTypes) assert.equal(smart.items.filter((i) => i.mealType === mt).reduce((n, i) => n + i.servings, 0), 10, mt);
+  const ids = smart.items.map((i) => i.recipeId);
+  assert.equal(new Set(ids).size, ids.length);
+  const waste = (plan: typeof smart) => planDetails(s.get(), plan).grocery.reduce((n, g) => { const k = packagesFor(s.get(), g.id, g.grams); return n + ((k.count * k.pkgGrams - g.grams) * k.price) / k.pkgGrams; }, 0);
+  assert.ok(waste(smart) <= waste(best), `leftover value smart ${waste(smart).toFixed(2)} vs best ${waste(best).toFixed(2)}`);
+  assert.ok(planDetails(s.get(), smart).cash <= planDetails(s.get(), best).cash, 'smart costs no more than best-fit');
+  assert.ok(sharedCount(smart) >= 3, 'reuses ingredients');
+});
+
+test('smart plan respects allergies and a tight budget', () => {
+  const s = store(profile(), prefs({ allergies: ['dairy'] }));
+  s.setBudget({ amount: 45, period: 'week', scope: 'groceries', eatingOutShare: 0, currency: 'USD' });
+  const plan = generatePlan(s.get(), { days: 4, people: 1, mealTypes: ['lunch', 'dinner'], mode: 'mix', strategy: 'smart' });
+  const d = planDetails(s.get(), plan);
+  for (const it of d.items) for (const i of it.resolved.ingredients) assert.ok(!ingredient(i.id).allergens.includes('dairy'), `${it.resolved.recipe.id}: ${i.id}`);
+  const budget = generatePlan(s.get(), { days: 4, people: 1, mealTypes: ['lunch', 'dinner'], mode: 'mix', strategy: 'budget' });
+  // Smart stays close to the cheapest plan's per-serving cost.
+  assert.ok(d.perServingCost <= planDetails(s.get(), budget).perServingCost * 1.6, `${d.perServingCost}`);
+});
+
+test('plan insights: per-day nutrition, % of target, leftovers and prep order', () => {
+  const s = store(profile(), prefs({ age: 30, weightKg: 80, heightCm: 180, sex: 'male', activity: 'moderate' }));
+  const plan = generatePlan(s.get(), { days: 6, people: 1, mealTypes: ['lunch', 'dinner'], mode: 'mix', strategy: 'smart' });
+  const ins = planInsights(s.get(), plan);
+  assert.ok(ins.ref.personal, 'personal targets used');
+  assert.ok(ins.perDay.kcal > 400 && ins.perDay.kcal < 2200, `${ins.perDay.kcal}`);
+  assert.equal(ins.pct.kcal, Math.round((ins.perDay.kcal / ins.ref.kcal) * 100));
+  for (const l of ins.leftovers) for (const idea of l.ideas) assert.ok(recipe(idea.id)!.ingredients.some((i) => i.id === l.id));
+  const steps = prepSchedule(s.get(), plan);
+  assert.equal(steps.at(-1)!.id, 'pack');
+  if (steps.some((x) => x.id === 'oven')) assert.equal(steps[0].id, 'oven');
+  assert.ok(freezerPlan(plan).length > 0, 'day 5+ portions go in the freezer');
+  assert.equal(freezerPlan({ ...plan, days: 3 }).length, 0);
+  // No weight/height/age → FDA label reference values, flagged as not personal.
+  const plain = store();
+  assert.deepEqual(dailyRef(plain.get()), { ...FDA_DV, personal: false });
+});
