@@ -396,3 +396,6 @@ html[data-bg='canvas'] body::before, html[data-bg='canvas'] body::after { displa
 .kids-gate-back { min-height: 44px; border: 0; background: none; color: #5a4fc9; font-weight: 800; }
 .shake { animation: shake 400ms; }
 @keyframes shake { 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+.finish-ready { animation: ready-pulse 1.8s ease-in-out infinite; }
+@keyframes ready-pulse { 0%, 100% { box-shadow: 0 8px 22px -12px rgba(255, 90, 31, 0.6); } 50% { box-shadow: 0 0 0 6px rgba(255, 90, 31, 0.18), 0 8px 26px -8px rgba(255, 90, 31, 0.8); } }
+[data-motion='reduced'] .finish-ready { animation: none; }

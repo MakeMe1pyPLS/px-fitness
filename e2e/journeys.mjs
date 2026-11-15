@@ -119,11 +119,9 @@ await step('check-in saves and changes today’s suggestion with a visible reaso
   await shot('07-home-adapted');
 });
 
-await step('workout: logging needs a value, then starts rest timer', async () => {
+await step('workout: typed values are logged, then rest timer starts', async () => {
   await page.getByTestId('start-full').click();
   await page.waitForSelector('.workout');
-  await page.getByTestId('check-0-0').click();
-  await page.locator('.toast', { hasText: 'Enter reps first' }).waitFor();
   const w = page.getByLabel('Set 1 weight in lb').first();
   if (await w.count()) await w.fill('40');
   await page.getByTestId('reps-0-0').fill('10');

@@ -80,7 +80,12 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
       <div className="stack" style={{ padding: 16, gap: 14 }}>
         {felt && <div className="note-advice small" data-testid="wk-note-advice"><b>{felt.headline}.</b> {felt.body}{felt.cautionParts.length > 0 && !s.exercises.some((e) => felt.cautionParts.some((pt) => exerciseLoads(e.exerciseId, pt))) ? ' None of today’s moves load it much.' : ''}</div>}
         {s.exercises.map((e, exIdx) => (
-          <ExerciseCard key={exIdx + e.exerciseId} data={data} session={s} exIdx={exIdx} caution={felt?.cautionParts.filter((pt) => exerciseLoads(e.exerciseId, pt)) ?? []} onSetDone={(ex) => startRest(REST_DEFAULT[ex.metric])} onSwap={() => setSheet({ kind: 'swap', exIdx })} />
+          <ExerciseCard key={exIdx + e.exerciseId} data={data} session={s} exIdx={exIdx} caution={felt?.cautionParts.filter((pt) => exerciseLoads(e.exerciseId, pt)) ?? []} onSetDone={(ex) => {
+            const cur = store.get().sessions.find((x) => x.id === s.id);
+            const allDone = !!cur && cur.exercises.every((x) => x.sets.every((y) => y.done));
+            if (allDone) { setRest(null); setTimeout(() => document.querySelector('[data-testid="finish"]')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50); return; }
+            startRest(REST_DEFAULT[ex.metric]);
+          }} onSwap={() => setSheet({ kind: 'swap', exIdx })} />
         ))}
         <button className="btn ghost-dark btn-block" onClick={() => setSheet({ kind: 'add' })} data-testid="add-exercise"><Icon.plus /> Add exercise</button>
       </div>
@@ -100,10 +105,11 @@ export function Workout({ go, onComplete }: { go: (r: Route) => void; onComplete
           </div>
           <div className="progress-track" style={{ marginTop: 10 }}><div className="progress-fill" style={{ width: `${Math.max(0, Math.min(100, (remaining / rest.total) * 100))}%`, transition: 'width 1s linear' }} /></div>
           {remaining > 0 && <MiniPops />}
+          <button className="btn ghost-dark btn-block btn-sm" style={{ marginTop: 10 }} onClick={() => { setRest(null); setSheet({ kind: 'finish' }); }} data-testid="rest-finish">Done for today? Finish workout</button>
         </div>
       ) : (
         <div className="finish-bar">
-          <button className="btn btn-primary btn-lg btn-block" onClick={() => setSheet({ kind: 'finish' })} data-testid="finish">Finish workout</button>
+          <button className={'btn btn-primary btn-lg btn-block' + (total > 0 && done === total ? ' finish-ready' : '')} onClick={() => setSheet({ kind: 'finish' })} data-testid="finish">{total > 0 && done === total ? 'All sets done · Finish workout' : 'Finish workout'}</button>
         </div>
       )}
 
@@ -159,6 +165,8 @@ function ExerciseCard({ data, session, exIdx, onSetDone, onSwap, caution = [] }:
       patch.reps = set.reps ?? sug?.reps;
       if (hasWeight) patch.weight = set.weight ?? sug?.weight;
     }
+    if (ex.metric === 'time' && !patch.seconds) patch.seconds = targetSeconds(e.target);
+    if (ex.metric !== 'time' && !patch.reps) patch.reps = targetReps(e.target);
     if ((ex.metric === 'time' && !patch.seconds) || (ex.metric !== 'time' && !patch.reps)) {
       toast(ex.metric === 'time' ? 'Enter the seconds first' : 'Enter reps first');
       document.getElementById(`in-${exIdx}-${i}-${ex.metric === 'time' ? 'sec' : 'reps'}`)?.focus();
@@ -299,6 +307,16 @@ function FeelingNote({ value, onChange, ignored, setIgnored }: { value: string; 
       )}
     </div>
   );
+}
+
+/** "8–12 reps" → 8 (the low end: honest if they tick without typing). */
+export function targetReps(t: string): number | undefined { const m = t.match(/(\d+)\s*(?:[–-]\s*\d+)?\s*(?:reps|each|\/)/i) ?? t.match(/^(\d+)/); return m ? Number(m[1]) : undefined; }
+/** "30 s", "45 sec", "2 min rounds", "1:30" → seconds. */
+export function targetSeconds(t: string): number | undefined {
+  let m = t.match(/(\d+):(\d{2})/); if (m) return Number(m[1]) * 60 + Number(m[2]);
+  m = t.match(/(\d+)\s*(?:[–-]\s*\d+)?\s*min/i); if (m) return Number(m[1]) * 60;
+  m = t.match(/(\d+)\s*(?:[–-]\s*\d+)?\s*s(?:ec|econds?)?\b/i); if (m) return Number(m[1]);
+  return undefined;
 }
 
 export function Complete({ id, go }: { id: string; go: (r: Route) => void }) {
